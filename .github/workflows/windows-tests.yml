@@ -1,0 +1,30 @@
+name: Windows tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compatibility:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $errors = @()
+          Get-ChildItem -Path . -Filter '*.ps1' -File -Recurse |
+            ForEach-Object {
+              $tokens = $null
+              $parseErrors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile(
+                $_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+              $errors += $parseErrors
+            }
+          if ($errors.Count -gt 0) {
+            $errors | Format-List
+            exit 1
+          }
+      - name: Test JavaFX/JDK compatibility table
+        shell: pwsh
+        run: ./tests/test-version-mapping.ps1

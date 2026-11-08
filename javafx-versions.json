@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "source": "https://gluonhq.com/products/javafx/",
+  "releases": [
+    { "version": "27.0.1", "minimumJdk": 25 },
+    { "version": "26.0.2", "minimumJdk": 24 },
+    { "version": "25.0.5", "minimumJdk": 23 },
+    { "version": "24.0.2", "minimumJdk": 22 },
+    { "version": "23.0.2", "minimumJdk": 21 },
+    { "version": "21.0.13", "minimumJdk": 17 },
+    { "version": "17.0.21", "minimumJdk": 11 }
+  ]
+}
