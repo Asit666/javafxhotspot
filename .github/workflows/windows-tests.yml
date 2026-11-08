@@ -7,8 +7,17 @@ on:
 jobs:
   compatibility:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        jdk: ['17', '21', '25']
     steps:
       - uses: actions/checkout@v4
+      - name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
       - name: Parse PowerShell scripts
         shell: pwsh
         run: |
@@ -28,3 +37,53 @@ jobs:
       - name: Test JavaFX/JDK compatibility table
         shell: pwsh
         run: ./tests/test-version-mapping.ps1
+      - name: Install SDK and smoke-test commands
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          . ./scripts/common.ps1
+          $jdk = Get-CurrentJdk
+          $expected = Get-CompatibleJavaFxRelease -JdkMajor $jdk.Major
+
+          ./install.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw 'JavaFX Hotspot installer failed.'
+          }
+          if (-not $env:PATH_TO_FX.EndsWith("javafx-sdk-$($expected.version)-windows-x64\lib")) {
+            throw "Installer selected an unexpected SDK: $env:PATH_TO_FX"
+          }
+
+          $project = Join-Path $env:RUNNER_TEMP ("javafx-hotspot smoke " + [guid]::NewGuid().ToString('N'))
+          $sourceDirectory = Join-Path $project 'src\smoke'
+          New-Item -ItemType Directory -Path $sourceDirectory -Force | Out-Null
+          @'
+          package smoke;
+          import javafx.scene.paint.Color;
+          public class Smoke {
+              public static void main(String[] args) {
+                  System.out.println(Helper.message() + " " + Color.RED);
+              }
+          }
+          '@ | Set-Content -LiteralPath (Join-Path $sourceDirectory 'Smoke.java')
+          @'
+          package smoke;
+          final class Helper {
+              static String message() { return "JavaFX Hotspot smoke test passed"; }
+          }
+          '@ | Set-Content -LiteralPath (Join-Path $sourceDirectory 'Helper.java')
+
+          Push-Location $project
+          try {
+            $bin = Join-Path $env:LOCALAPPDATA 'JavaFXHotspot\bin'
+            & (Join-Path $bin 'javafxc.cmd') Smoke.java Helper.java
+            if ($LASTEXITCODE -ne 0) {
+              throw 'javafxc failed to compile the packaged smoke test.'
+            }
+            $output = & (Join-Path $bin 'javafx.cmd') Smoke
+            if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'JavaFX Hotspot smoke test passed 0xff0000ff') {
+              throw "javafx failed to run the packaged smoke test. Output: $($output -join ' ')"
+            }
+          } finally {
+            Pop-Location
+            Remove-Item -LiteralPath $project -Recurse -Force
+          }
