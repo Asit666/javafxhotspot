@@ -38,62 +38,109 @@ installation are needed.
 
 ## Use
 
-Open a terminal in your Java project directory (the folder where you want
-`build\classes` created), then compile and run:
+Open PowerShell, Command Prompt, Windows Terminal, or your IDE's terminal in
+your project folder. This is the folder where JavaFX Hotspot will put the
+compiled files in `build\classes`.
+
+### Compile your code
 
 ```powershell
 javafxc MyApp.java
-javafx MyApp
 ```
 
-`javafxc` compiles `.java` source files into `build\classes` in the current
-directory. `javafx` launches the compiled class from there. Compile again
-after changing source code. Each project directory gets its own
-`build\classes` output.
+- `javafxc` is the JavaFX Hotspot compile command.
+- `MyApp.java` is the source file to compile. It can be in the current folder
+  or a subfolder.
+- The command invokes `javac`, supplies the installed JavaFX SDK, and writes
+  `.class` files into `build\classes`.
+- Run the compile command again whenever you change your source.
 
-The commands search the current project and its subfolders for a uniquely
-named source file, so a source in `src\main\java` can be found by its short
-filename. You can also give an explicit source path. If your app uses a
-package, `javafx` reads the source's package declaration when resolving a
-short class name:
+If your app uses helper classes in other source files, list those files too:
+
+```powershell
+javafxc MyApp.java Helper.java
+```
+
+You can provide a relative path instead of relying on the source-file search:
 
 ```powershell
 javafxc .\src\main\java\example\MyApp.java .\src\main\java\example\Helper.java
+```
+
+The search looks for a uniquely named `.java` file under the current project
+folder and ignores generated `build`, `target`, and `.git` folders. If it finds
+duplicate filenames, give the source path explicitly.
+
+### Run your program
+
+```powershell
 javafx MyApp
 ```
 
-If more than one source file has the same name, give `javafxc` the path to the
-one you want. If class-name lookup is ambiguous, give `javafx` the full package
-and class name:
+- `javafx` is the JavaFX Hotspot run command.
+- `MyApp` is the class containing `public static void main(String[] args)`.
+- The command invokes `java`, adds the installed JavaFX modules, and loads
+  compiled classes from `build\classes`.
+- Run it from the same project folder where you ran `javafxc`.
+
+For a class declared in a package, Java's full class name includes the package.
+For example, `package example;` plus `class MyApp` has the full name
+`example.MyApp`. If the source file is found, `javafx MyApp` reads its package
+declaration for you. You can also spell out the full name yourself:
 
 ```powershell
-javafxc .\src\main\java\example\MyApp.java
 javafx example.MyApp
 ```
 
-Pass application arguments after the class name. Use `--` to mark the end of
-JavaFX Hotspot options:
+For the Liquid Glass demo in this repository, run these from the project root:
 
 ```powershell
-javafx MyApp -- --demo
+javafxc .\src\main\java\com\example\liquidglass\LiquidGlassDemo.java
+javafx com.example.liquidglass.LiquidGlassDemo
 ```
 
-JVM memory options go **before** the class name. For example, set the maximum
-Java heap to 512 MB:
+### Set Java memory
+
+Options such as `-Xmx` and `-Xms` are JVM options, so put them **before** the
+class name:
 
 ```powershell
 javafx -Xmx512m MyApp
-javafx -Xms128m -Xmx1g MyApp --demo
+javafx -Xms128m -Xmx1g MyApp
 ```
 
-`-Xmx` is optional; without it, Java chooses a default based on the machine. It
-limits only Java heap memory, not all process memory (for example, JavaFX and
-graphics resources). Setting it too low can cause `OutOfMemoryError`.
+| Option | Meaning | Example |
+|---|---|---|
+| `-Xms128m` | Start the Java heap at 128 MB. This is optional. | `javafx -Xms128m MyApp` |
+| `-Xmx512m` | Limit the Java heap to 512 MB. This is optional. | `javafx -Xmx512m MyApp` |
 
-The classpath and JavaFX module path are set for you. Compile related source
-files together by listing them after the first source. Projects
-with third-party libraries, a custom module descriptor, or IDE-specific build
-needs may still require their own project configuration.
+Use `k`, `m`, or `g` for kilobytes, megabytes, or gigabytes. Without these
+options, Java selects its own heap defaults. `-Xmx` limits only Java heap—not
+the whole process, JavaFX native memory, or graphics memory. A limit that is
+too small can cause `OutOfMemoryError`.
+
+### Pass arguments to your app
+
+Application arguments go **after** the class name:
+
+```powershell
+javafx MyApp --demo
+```
+
+If an application argument looks like a JavaFX Hotspot/JVM option, put `--`
+before the application's arguments to make the separation explicit:
+
+```powershell
+javafx -Xmx512m MyApp -- -Xmx-is-an-app-argument
+```
+
+In this example, `-Xmx512m` sets the JVM heap; the text after `--` is passed to
+`MyApp` as an application argument.
+
+JavaFX Hotspot sets up the JavaFX module path and compiled-class path for these
+commands. It is a lightweight helper, not a full build tool: projects that use
+third-party libraries, annotation processors, a custom module descriptor, or
+more complex build steps may need Maven, Gradle, or their own IDE configuration.
 
 ## JDK compatibility
 
