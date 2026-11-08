@@ -26,6 +26,12 @@ New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
-$arguments = @('--module-path', $sdk, '--add-modules', 'ALL-MODULE-PATH', '-d', $outputDirectory) + $sources
+$modules = Get-JavaFxModules
+$arguments = @('--module-path', $sdk, '--add-modules', $modules, '-d', $outputDirectory) + $sources
 & $jdk.Javac.Path @arguments
-exit $LASTEXITCODE
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
+Copy-JavaResources -ProjectDirectory (Get-Location).Path -OutputDirectory $outputDirectory
+exit 0

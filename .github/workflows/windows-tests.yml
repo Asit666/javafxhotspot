@@ -61,6 +61,19 @@ jobs:
           import javafx.scene.paint.Color;
           public class Smoke {
               public static void main(String[] args) {
+                  var fxml = Smoke.class.getResource("/smoke/main.fxml");
+                  var css = Smoke.class.getResource("/smoke/app.css");
+                  if (fxml == null || css == null) {
+                      throw new IllegalStateException("FXML or CSS resource was not copied.");
+                  }
+                  try {
+                      var root = new javafx.fxml.FXMLLoader(fxml).load();
+                      if (!(root instanceof javafx.scene.layout.Pane)) {
+                          throw new IllegalStateException("Unexpected FXML root.");
+                      }
+                  } catch (java.io.IOException exception) {
+                      throw new RuntimeException("FXML resource could not be loaded.", exception);
+                  }
                   System.out.println(Helper.message() + " " + Color.RED);
               }
           }
@@ -71,6 +84,15 @@ jobs:
               static String message() { return "JavaFX Hotspot smoke test passed"; }
           }
           '@ | Set-Content -LiteralPath (Join-Path $sourceDirectory 'Helper.java')
+          $resourceDirectory = Join-Path $project 'src\main\resources\smoke'
+          New-Item -ItemType Directory -Path $resourceDirectory -Force | Out-Null
+          @'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <?import javafx.scene.layout.Pane?>
+          <Pane xmlns:fx="http://javafx.com/fxml/1" />
+          '@ | Set-Content -LiteralPath (Join-Path $resourceDirectory 'main.fxml')
+          '.root { -fx-background-color: #202020; }' |
+            Set-Content -LiteralPath (Join-Path $resourceDirectory 'app.css')
 
           Push-Location $project
           try {

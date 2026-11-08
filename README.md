@@ -53,6 +53,8 @@ javafxc MyApp.java
   or a subfolder.
 - The command invokes `javac`, supplies the installed JavaFX SDK, and writes
   `.class` files into `build\classes`.
+- It also copies resource files from `src\main\resources` or `resources` into
+  `build\classes`, preserving their subfolders.
 - Run the compile command again whenever you change your source.
 
 If your app uses helper classes in other source files, list those files too:
@@ -66,6 +68,28 @@ You can provide a relative path instead of relying on the source-file search:
 ```powershell
 javafxc .\src\main\java\example\MyApp.java .\src\main\java\example\Helper.java
 ```
+
+For an FXML app, put FXML, CSS, images, and other resources under
+`src\main\resources`. For example:
+
+```text
+src\main\java\example\MyApp.java
+src\main\resources\example\Main.fxml
+src\main\resources\example\app.css
+```
+
+After compiling, those files are available on the classpath. Load them using
+classpath-relative URLs:
+
+```java
+FXMLLoader loader = new FXMLLoader(MyApp.class.getResource("/example/Main.fxml"));
+Parent root = loader.load();
+scene.getStylesheets().add(
+    MyApp.class.getResource("/example/app.css").toExternalForm());
+```
+
+FXML code needs the JavaFX FXML module. JavaFX Hotspot adds JavaFX modules
+automatically, and `javafxc` copies the resources when it compiles your source.
 
 The search looks for a uniquely named `.java` file under the current project
 folder and ignores generated `build`, `target`, and `.git` folders. If it finds
@@ -98,6 +122,13 @@ For the Liquid Glass demo in this repository, run these from the project root:
 javafxc .\src\main\java\com\example\liquidglass\LiquidGlassDemo.java
 javafx com.example.liquidglass.LiquidGlassDemo
 ```
+
+The demo loads its layout from
+`src\main\resources\com\example\liquidglass\liquid-glass.fxml` and its styles
+from `liquid-glass.css` in the same folder. The FXML defines the visible title
+and caption, while the Java code creates the animated-looking background and
+glass effect. The default `javafx.controls,javafx.fxml` modules are sufficient
+for this demo.
 
 ### Set Java memory
 
@@ -138,9 +169,24 @@ In this example, `-Xmx512m` sets the JVM heap; the text after `--` is passed to
 `MyApp` as an application argument.
 
 JavaFX Hotspot sets up the JavaFX module path and compiled-class path for these
-commands. It is a lightweight helper, not a full build tool: projects that use
-third-party libraries, annotation processors, a custom module descriptor, or
-more complex build steps may need Maven, Gradle, or their own IDE configuration.
+commands. By default it enables `javafx.controls` and `javafx.fxml`. If your
+app uses other JavaFX modules, set `JAVAFX_MODULES` to a comma-separated list
+in the terminal before compiling and running. For example:
+
+```powershell
+$env:JAVAFX_MODULES = "javafx.controls,javafx.fxml,javafx.media"
+javafxc MyApp.java
+javafx MyApp
+```
+
+Use module names such as `javafx.media`, `javafx.web`, or `javafx.swing` only
+when the app needs them. This avoids resolving unused JavaFX modules by
+default; it reduces unnecessary module resolution, but does not guarantee a
+specific total RAM reduction because JavaFX also uses native and graphics
+memory. JavaFX Hotspot is a lightweight helper, not a full build tool:
+projects that use third-party libraries, annotation processors, a custom
+module descriptor, or more complex build steps may need Maven, Gradle, or their
+own IDE configuration.
 
 ## JDK compatibility
 

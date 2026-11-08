@@ -19,6 +19,28 @@ foreach ($case in $cases) {
     }
 }
 
+if ((Get-JavaFxModules) -ne 'javafx.controls,javafx.fxml') {
+    throw 'The default JavaFX modules should include controls and FXML only.'
+}
+$previousModules = $env:JAVAFX_MODULES
+try {
+    $env:JAVAFX_MODULES = 'javafx.controls, javafx.media'
+    if ((Get-JavaFxModules) -ne 'javafx.controls,javafx.media') {
+        throw 'Custom JavaFX module selection was not preserved.'
+    }
+    $env:JAVAFX_MODULES = 'javafx.controls,javafx.web;Remove-Item'
+    try {
+        Get-JavaFxModules | Out-Null
+        throw 'Invalid JavaFX module input should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike 'Invalid JAVAFX_MODULES value*') {
+            throw
+        }
+    }
+} finally {
+    $env:JAVAFX_MODULES = $previousModules
+}
+
 Assert-JavaFxMatchesJdk -JdkMajor 25 -SdkPath 'C:\JavaFX\javafx-sdk-25.0.5\lib'
 try {
     Assert-JavaFxMatchesJdk -JdkMajor 21 -SdkPath 'C:\JavaFX\javafx-25.0.5-windows-x64\lib'

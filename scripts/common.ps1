@@ -105,6 +105,21 @@ function Get-InstalledJavaFxPath {
     $null
 }
 
+function Get-JavaFxModules {
+    $moduleSetting = if ([string]::IsNullOrWhiteSpace($env:JAVAFX_MODULES)) {
+        'javafx.controls,javafx.fxml'
+    } else {
+        $env:JAVAFX_MODULES
+    }
+
+    $modules = @($moduleSetting -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($modules.Count -eq 0 -or @($modules | Where-Object { $_ -notmatch '^javafx\.[A-Za-z0-9.]+$' }).Count -gt 0) {
+        throw "Invalid JAVAFX_MODULES value '$moduleSetting'. Use comma-separated module names such as javafx.controls,javafx.fxml,javafx.media."
+    }
+
+    $modules -join ','
+}
+
 function Assert-JavaFxMatchesJdk {
     param(
         [Parameter(Mandatory = $true)]
@@ -182,4 +197,40 @@ function Get-JavaPackageName {
         return $match.Groups[1].Value
     }
     ''
+}
+
+function Copy-JavaResources {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ProjectDirectory,
+
+        [Parameter(Mandatory = $true)]
+        [string] $OutputDirectory
+    )
+
+    $resourceDirectories = @(
+        (Join-Path $ProjectDirectory 'src\main\resources'),
+        (Join-Path $ProjectDirectory 'resources')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Container }
+
+    $filesByRelativePath = [System.Collections.Generic.Dictionary[string, string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($resourceDirectory in $resourceDirectories) {
+        $root = (Get-Item -LiteralPath $resourceDirectory).FullName
+        $rootPrefix = $root.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        foreach ($file in Get-ChildItem -LiteralPath $root -File -Recurse) {
+            $relativePath = $file.FullName.Substring($rootPrefix.Length)
+            if ($filesByRelativePath.ContainsKey($relativePath)) {
+                throw "Resource '$relativePath' exists in more than one resource folder. Keep one copy under src\main\resources or resources."
+            }
+            $filesByRelativePath.Add($relativePath, $file.FullName)
+        }
+    }
+
+    foreach ($relativePath in $filesByRelativePath.Keys) {
+        $destination = Join-Path $OutputDirectory $relativePath
+        $destinationDirectory = Split-Path -Parent $destination
+        New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
+        Copy-Item -LiteralPath $filesByRelativePath[$relativePath] -Destination $destination -Force
+    }
 }

@@ -77,7 +77,8 @@ if (-not (Test-Path -LiteralPath $classDirectory -PathType Container)) {
 $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
-$arguments = @('--module-path', $sdk, '--add-modules', 'ALL-MODULE-PATH') +
+$modules = Get-JavaFxModules
+$arguments = @('--module-path', $sdk, '--add-modules', $modules) +
     $vmOptions.ToArray() +
     @('-cp', $classDirectory, $mainClass) +
     $programArguments.ToArray()
