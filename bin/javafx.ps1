@@ -1,10 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true, Position = 0)]
-    [string] $ClassName,
-
-    [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
-    [string[]] $ProgramArguments
+    [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
+    [string[]] $CommandArguments
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,18 +12,55 @@ if (-not $sdk) {
     throw 'JavaFX SDK is not configured. Run install.ps1 from the JavaFX Hotspot repository.'
 }
 
-$mainClass = $ClassName
-if ($ClassName.EndsWith('.java', [System.StringComparison]::OrdinalIgnoreCase)) {
-    $source = Resolve-JavaSource -Source $ClassName
+if (-not $CommandArguments -or $CommandArguments.Count -eq 0) {
+    throw 'Usage: javafx [-Xmx<size>] ClassName [application arguments]'
+}
+
+$vmOptions = [System.Collections.Generic.List[string]]::new()
+$programArguments = [System.Collections.Generic.List[string]]::new()
+$className = $null
+$readingProgramArguments = $false
+foreach ($argument in $CommandArguments) {
+    if (-not $readingProgramArguments -and $argument -eq '--') {
+        $readingProgramArguments = $true
+        continue
+    }
+
+    if (-not $className -and -not $readingProgramArguments -and $argument -match '^-Xm([sx])(.+)$') {
+        if ($argument -notmatch '^-Xm[sx][1-9]\d*[kKmMgG]?$') {
+            throw "Invalid JVM memory option '$argument'. Use a positive size such as -Xmx512m."
+        }
+        if (($argument.StartsWith('-Xmx') -and @($vmOptions | Where-Object { $_ -like '-Xmx*' }).Count -gt 0) -or
+            ($argument.StartsWith('-Xms') -and @($vmOptions | Where-Object { $_ -like '-Xms*' }).Count -gt 0)) {
+            throw "Specify each JVM memory option only once: '$argument'."
+        }
+        $vmOptions.Add($argument)
+        continue
+    }
+
+    if (-not $className) {
+        $className = $argument
+    } else {
+        $programArguments.Add($argument)
+    }
+}
+
+if (-not $className) {
+    throw 'Missing main class. Usage: javafx [-Xmx<size>] ClassName [application arguments]'
+}
+
+$mainClass = $className
+if ($className.EndsWith('.java', [System.StringComparison]::OrdinalIgnoreCase)) {
+    $source = Resolve-JavaSource -Source $className
     $simpleName = [System.IO.Path]::GetFileNameWithoutExtension($source)
     $packageName = Get-JavaPackageName -SourcePath $source
     $mainClass = if ($packageName) { "$packageName.$simpleName" } else { $simpleName }
-} elseif ($ClassName -notmatch '\.') {
+} elseif ($className -notmatch '\.') {
     try {
-        $source = Resolve-JavaSource -Source "$ClassName.java"
+        $source = Resolve-JavaSource -Source "$className.java"
         $packageName = Get-JavaPackageName -SourcePath $source
         if ($packageName) {
-            $mainClass = "$packageName.$ClassName"
+            $mainClass = "$packageName.$className"
         }
     } catch {
         if ($_.Exception.Message -like 'Found multiple files named*') {
@@ -43,6 +77,9 @@ if (-not (Test-Path -LiteralPath $classDirectory -PathType Container)) {
 $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
-$arguments = @('--module-path', $sdk, '--add-modules', 'ALL-MODULE-PATH', '-cp', $classDirectory, $mainClass) + $ProgramArguments
+$arguments = @('--module-path', $sdk, '--add-modules', 'ALL-MODULE-PATH') +
+    $vmOptions.ToArray() +
+    @('-cp', $classDirectory, $mainClass) +
+    $programArguments.ToArray()
 & $jdk.Java.Path @arguments
 exit $LASTEXITCODE

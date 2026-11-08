@@ -1,16 +1,7 @@
 # JavaFX Hotspot
 
-Install JavaFX once, then compile and run small JavaFX programs from PowerShell,
-Command Prompt, Windows Terminal, VS Code, Zed, or another IDE terminal:
-
-```powershell
-javafxc MyApp.java Helper.java
-javafx MyApp
-```
-
-`javafxc` compiles into `build\classes` in the current directory. `javafx`
-accepts either a simple class name or a fully qualified class name. For a
-packaged class, it finds the source file and reads its `package` declaration.
+Install JavaFX once, then use `javafxc` and `javafx` from PowerShell, Command
+Prompt, Windows Terminal, VS Code, Zed, or another IDE terminal.
 
 ## Requirements
 
@@ -47,27 +38,57 @@ installation are needed.
 
 ## Use
 
-Open a terminal in a Java project directory:
+Open a terminal in your Java project directory (the folder where you want
+`build\classes` created), then compile and run:
 
 ```powershell
 javafxc MyApp.java
 javafx MyApp
 ```
 
-The commands search the current project for a uniquely named source file.
-If there are duplicate class names, pass a source path to `javafxc` or a fully
-qualified class name to `javafx`:
+`javafxc` compiles `.java` source files into `build\classes` in the current
+directory. `javafx` launches the compiled class from there. Compile again
+after changing source code. Each project directory gets its own
+`build\classes` output.
+
+The commands search the current project and its subfolders for a uniquely
+named source file, so a source in `src\main\java` can be found by its short
+filename. You can also give an explicit source path. If your app uses a
+package, `javafx` reads the source's package declaration when resolving a
+short class name:
+
+```powershell
+javafxc .\src\main\java\example\MyApp.java .\src\main\java\example\Helper.java
+javafx MyApp
+```
+
+If more than one source file has the same name, give `javafxc` the path to the
+one you want. If class-name lookup is ambiguous, give `javafx` the full package
+and class name:
 
 ```powershell
 javafxc .\src\main\java\example\MyApp.java
 javafx example.MyApp
 ```
 
-Pass application arguments after the class name:
+Pass application arguments after the class name. Use `--` to mark the end of
+JavaFX Hotspot options:
 
 ```powershell
-javafx MyApp --demo
+javafx MyApp -- --demo
 ```
+
+JVM memory options go **before** the class name. For example, set the maximum
+Java heap to 512 MB:
+
+```powershell
+javafx -Xmx512m MyApp
+javafx -Xms128m -Xmx1g MyApp --demo
+```
+
+`-Xmx` is optional; without it, Java chooses a default based on the machine. It
+limits only Java heap memory, not all process memory (for example, JavaFX and
+graphics resources). Setting it too low can cause `OutOfMemoryError`.
 
 The classpath and JavaFX module path are set for you. Compile related source
 files together by listing them after the first source. Projects
