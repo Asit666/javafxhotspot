@@ -75,7 +75,13 @@ $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
 $modules = Get-JavaFxModules
+$nativeAccessOptions = if ($jdk.Major -ge 24) {
+    @('--enable-native-access=javafx.graphics')
+} else {
+    @()
+}
 $arguments = @('--module-path', $sdk, '--add-modules', $modules) +
+    $nativeAccessOptions +
     $vmOptions.ToArray() +
     @('-cp', $classDirectory, $mainClass) +
     $programArguments.ToArray()

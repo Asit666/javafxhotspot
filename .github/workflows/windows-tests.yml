@@ -107,9 +107,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw 'javafxc failed to compile the packaged smoke test.'
             }
-            $output = & (Join-Path $bin 'javafx.cmd') Smoke -Xmx-is-app-argument
+            $output = & (Join-Path $bin 'javafx.cmd') Smoke -Xmx-is-app-argument 2>&1
             if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'JavaFX Hotspot smoke test passed 0xff0000ff') {
               throw "javafx failed to run the packaged smoke test. Output: $($output -join ' ')"
+            }
+            if ($jdk.Major -ge 24 -and ($output -join "`n") -match 'Restricted methods will be blocked in a future release') {
+              throw "javafx emitted a restricted native-access warning on JDK $($jdk.Major). Output: $($output -join ' ')"
             }
           } finally {
             Pop-Location
