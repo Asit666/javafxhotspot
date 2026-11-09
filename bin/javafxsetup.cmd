@@ -1,3 +1,3 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0javafxsetup.ps1" %*
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0javafxsetup-impl.ps1" %*
 exit /b %ERRORLEVEL%

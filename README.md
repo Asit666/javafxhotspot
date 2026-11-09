@@ -64,7 +64,7 @@ first use `Set-Location` to move to the extracted repository folder.
 The installer places the SDK and commands under:
 
 ```text
-%LOCALAPPDATA%\JavaFXHotspot\
+$env:LOCALAPPDATA\JavaFXHotspot\
 ```
 
 It adds the command directory to your **user** PATH and configures
@@ -109,6 +109,11 @@ If `javafxsetup` is not recognized, the installed commands are from an older
 version. Download the latest repository ZIP and rerun `install.ps1`; the
 installer updates the commands without downloading JavaFX again when the
 compatible SDK is already installed.
+
+The commands use `.cmd` launchers to run their internal PowerShell scripts
+with `-ExecutionPolicy Bypass`, so you do not need to change your machine's
+PowerShell execution policy. Open a new terminal after reinstalling so it
+finds the updated launchers.
 
 ### Compile your code
 
@@ -271,7 +276,16 @@ matching JavaFX SDK.
 Run:
 
 ```powershell
+Set-Location "$HOME\javafxhotspot-download\javafxhotspot-main"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+```
+
+If you extracted the repository somewhere else, use `Set-Location` with that
+folder instead. The command must be run from the folder containing
+`uninstall.ps1`. To print the install directory in PowerShell, use:
+
+```powershell
+Join-Path $env:LOCALAPPDATA 'JavaFXHotspot'
 ```
 
 The uninstaller removes JavaFX Hotspot's own install folder and its entries

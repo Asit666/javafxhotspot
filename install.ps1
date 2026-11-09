@@ -83,9 +83,15 @@ New-Item -ItemType Directory -Path (Join-Path $installRoot 'scripts') -Force | O
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup.cmd') -Destination $bin -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc.ps1') -Destination $bin -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx.ps1') -Destination $bin -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup.ps1') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc-impl.ps1') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx-impl.ps1') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup-impl.ps1') -Destination $bin -Force
+foreach ($obsoleteCommandScript in @('javafxc.ps1', 'javafx.ps1', 'javafxsetup.ps1')) {
+    $obsoletePath = Join-Path $bin $obsoleteCommandScript
+    if (Test-Path -LiteralPath $obsoletePath -PathType Leaf) {
+        Remove-Item -LiteralPath $obsoletePath -Force
+    }
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'scripts\common.ps1') -Destination (Join-Path $installRoot 'scripts\common.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'javafx-versions.json') -Destination $installRoot -Force
 
