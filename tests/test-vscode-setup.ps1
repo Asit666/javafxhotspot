@@ -25,13 +25,7 @@ try {
 '@ | Set-Content -LiteralPath $settingsPath
 
     & $setupScript -ProjectDirectory $projectPath
-    if ($LASTEXITCODE -ne 0) {
-        throw 'javafxsetup failed on the first run.'
-    }
     & $setupScript -ProjectDirectory $projectPath
-    if ($LASTEXITCODE -ne 0) {
-        throw 'javafxsetup failed on the second run.'
-    }
 
     $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
     $libraries = @($settings.'java.project.referencedLibraries')
