@@ -153,7 +153,7 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
 
     foreach ($ide in @('vscode', 'eclipse', 'intellij', 'netbeans', 'zed', 'antigravity')) {
         $ideProjectPath = Join-Path $tempRoot ('only-' + $ide)
-        New-Item -ItemType Directory -Path $ideProjectPath -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $ideProjectPath 'src\main\java') -Force | Out-Null
         if ($ide -eq 'netbeans') {
             New-Item -ItemType Directory -Path (Join-Path $ideProjectPath 'nbproject') -Force | Out-Null
             'javac.classpath=' | Set-Content -LiteralPath (Join-Path $ideProjectPath 'nbproject\project.properties')
@@ -172,6 +172,12 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         }
         if ($expectedDirectory -and -not (Test-Path -LiteralPath (Join-Path $ideProjectPath $expectedDirectory) -PathType Container)) {
             throw "javafxsetup did not create the expected $ide configuration."
+        }
+        if ($ide -eq 'vscode') {
+            $vscodeSettings = Get-Content -LiteralPath (Join-Path $ideProjectPath '.vscode\settings.json') -Raw | ConvertFrom-Json
+            if (@($vscodeSettings.'java.project.sourcePaths') -notcontains 'src/main/java') {
+                throw 'javafxsetup did not register src/main/java as a VS Code Java source path.'
+            }
         }
         if ($ide -eq 'eclipse' -and
             (-not (Test-Path -LiteralPath (Join-Path $ideProjectPath '.project') -PathType Leaf) -or

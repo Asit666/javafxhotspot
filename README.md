@@ -100,7 +100,8 @@ javafxsetup
 
 By default, this configures JavaFX for the common Java IDEs:
 
-- **VS Code:** adds JavaFX JARs to `.vscode\settings.json`.
+- **VS Code:** adds JavaFX JARs to `.vscode\settings.json` and registers
+  `src\main\java` as a source folder when present.
 - **Eclipse:** creates or updates `.project` and `.classpath`, including
   `src\main\resources` as a source root when present.
 - **IntelliJ IDEA:** creates or updates `.idea` library/module configuration,

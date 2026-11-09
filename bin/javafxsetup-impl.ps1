@@ -216,6 +216,26 @@ function Set-VsCodeClassPath {
         }
     }
 
+    $sourceDirectory = Join-Path $Root 'src\main\java'
+    if (Test-Path -LiteralPath $sourceDirectory -PathType Container) {
+        $sourceProperty = $settings.PSObject.Properties['java.project.sourcePaths']
+        $sourcePaths = @()
+        if ($sourceProperty -and $null -ne $sourceProperty.Value) {
+            if ($sourceProperty.Value -isnot [array]) {
+                throw "Expected 'java.project.sourcePaths' in '$path' to be an array."
+            }
+            $sourcePaths = @($sourceProperty.Value)
+        }
+        if ($sourcePaths -notcontains 'src/main/java') {
+            $sourcePaths += 'src/main/java'
+        }
+        if ($sourceProperty) {
+            $sourceProperty.Value = $sourcePaths
+        } else {
+            $settings | Add-Member -MemberType NoteProperty -Name 'java.project.sourcePaths' -Value $sourcePaths
+        }
+    }
+
     $property = $settings.PSObject.Properties['java.project.referencedLibraries']
     $libraries = @()
     if ($property -and $null -ne $property.Value) {
