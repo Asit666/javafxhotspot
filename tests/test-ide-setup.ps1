@@ -146,6 +146,17 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         throw 'javafxsetup should reject malformed JSONC without overwriting the existing settings.'
     }
 
+    $explicitProjectPath = Join-Path $tempRoot 'explicit-project'
+    New-Item -ItemType Directory -Path $explicitProjectPath -Force | Out-Null
+    $explicitOutput = @(& $setupCommand.Source -ProjectDirectory $explicitProjectPath -IDE vscode 2>&1 |
+        ForEach-Object { "$_" })
+    if ($LASTEXITCODE -ne 0 -or
+        ($explicitOutput -join "`n") -notmatch [regex]::Escape($explicitProjectPath) -or
+        ($explicitOutput -join "`n") -notmatch 'No Java source folder or project file was found' -or
+        -not (Test-Path -LiteralPath (Join-Path $explicitProjectPath '.vscode\settings.json') -PathType Leaf)) {
+        throw 'javafxsetup did not clearly report and configure the explicitly supplied project directory.'
+    }
+
     & $setupCommand.Source $projectPath -IDE auto
     if ($LASTEXITCODE -ne 0) {
         throw 'javafxsetup auto-detection failed.'

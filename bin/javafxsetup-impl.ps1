@@ -607,6 +607,29 @@ if (-not (Test-Path -LiteralPath $projectPath -PathType Container)) {
     throw "Project folder does not exist: $projectPath"
 }
 
+$sourceDirectories = @(
+    'src\main\java',
+    'src\test\java',
+    'src',
+    'java'
+)
+$hasSourceDirectory = @($sourceDirectories | Where-Object {
+    Test-Path -LiteralPath (Join-Path $projectPath $_) -PathType Container
+}).Count -gt 0
+$hasProjectFile = @(
+    'pom.xml',
+    'build.gradle',
+    'build.gradle.kts',
+    'settings.gradle',
+    'settings.gradle.kts',
+    '.project',
+    '.classpath'
+    ) | Where-Object { Test-Path -LiteralPath (Join-Path $projectPath $_) -PathType Leaf }
+$hasJavaSource = @(Get-ChildItem -LiteralPath $projectPath -Filter '*.java' -File -ErrorAction SilentlyContinue).Count -gt 0
+if (-not $hasSourceDirectory -and -not $hasProjectFile -and -not $hasJavaSource) {
+    Write-Warning "No Java source folder or project file was found in '$projectPath'. javafxsetup configures this folder only; run it from your application's project root."
+}
+
 $jars = @(Get-ChildItem -LiteralPath $sdk -Filter 'javafx*.jar' -File | Sort-Object Name)
 if ($jars.Count -eq 0) {
     throw "No JavaFX JARs were found in the installed SDK folder '$sdk'."
@@ -659,6 +682,7 @@ if (($IDE -in @('all', 'netbeans') -or $IDE -eq 'auto') -and
     $skipped.Add('Apache NetBeans (no nbproject\project.properties found)')
 }
 
+Write-Host "JavaFX configured in: $projectPath"
 Write-Host "JavaFX configured for: $($configured -join ', ')"
 foreach ($message in $skipped) {
     Write-Host "Skipped $message"

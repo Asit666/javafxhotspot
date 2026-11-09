@@ -92,11 +92,25 @@ compiled files in `build\classes`.
 
 ### Configure IDE JavaFX imports
 
-After installing JavaFX Hotspot, open a terminal in your Java project and run:
+After installing JavaFX Hotspot, open a terminal in your **application's
+project root** (the folder containing `src\main\java`, not the folder where you
+extracted JavaFX Hotspot) and run:
 
 ```powershell
-javafxsetup
+Set-Location "$HOME\Downloads\src"
+javafxsetup -IDE vscode
 ```
+
+You can also pass the application project folder explicitly from any directory:
+
+```powershell
+javafxsetup "$HOME\Downloads\src" -IDE vscode
+```
+
+`javafxsetup` prints the folder it configured and warns if that folder does not
+look like a Java project. Each IDE option configures only the selected project
+folder; running the command in the extracted JavaFX Hotspot folder does not
+configure a separate application.
 
 By default, this configures JavaFX for the common Java IDEs:
 
