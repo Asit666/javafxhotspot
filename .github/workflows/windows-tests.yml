@@ -40,6 +40,9 @@ jobs:
       - name: Test multi-IDE JavaFX setup
         shell: pwsh
         run: ./tests/test-ide-setup.ps1
+      - name: Test isolated uninstall
+        shell: pwsh
+        run: ./tests/test-uninstall.ps1
       - name: Install SDK and smoke-test commands
         shell: pwsh
         run: |
@@ -117,4 +120,9 @@ jobs:
           } finally {
             Pop-Location
             Remove-Item -LiteralPath $project -Recurse -Force
+          }
+
+          ./uninstall.ps1
+          if (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'JavaFXHotspot')) {
+            throw 'JavaFX Hotspot uninstall did not remove the installation directory.'
           }
