@@ -19,9 +19,24 @@ from `download2.gluonhq.com`.
 
 ## Install
 
-Download or clone this repository, open PowerShell in its folder, and run:
+First download or clone this repository. Then run the installer **from the
+folder that contains `install.ps1`**. The path `.\install.ps1` is relative to
+PowerShell's current folder; for example, it will fail from `C:\Windows\System32`
+because the installer is not there.
+
+If Git is installed, you can clone the project and run the installer with:
 
 ```powershell
+git clone https://github.com/Asit666/javafxhotspot.git "$HOME\javafxhotspot"
+Set-Location "$HOME\javafxhotspot"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+If you already downloaded or cloned the repository, change to its actual
+location first. For example:
+
+```powershell
+Set-Location "$HOME\Downloads\javafxhotspot-main"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
