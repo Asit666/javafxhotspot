@@ -106,7 +106,7 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         throw 'javafxsetup auto-detection failed.'
     }
 
-    foreach ($ide in @('vscode', 'eclipse', 'intellij', 'netbeans')) {
+    foreach ($ide in @('vscode', 'eclipse', 'intellij', 'netbeans', 'zed', 'antigravity')) {
         $ideProjectPath = Join-Path $tempRoot ('only-' + $ide)
         New-Item -ItemType Directory -Path $ideProjectPath -Force | Out-Null
         if ($ide -eq 'netbeans') {
@@ -133,9 +133,29 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
                 -not (Test-Path -LiteralPath (Join-Path $ideProjectPath '.classpath') -PathType Leaf))) {
             throw 'javafxsetup did not create Eclipse project metadata.'
         }
-        if ($ide -ne 'vscode' -and (Test-Path -LiteralPath (Join-Path $ideProjectPath '.vscode') -PathType Container)) {
-            throw "javafxsetup configured VS Code when only '$ide' was selected."
+        if ($ide -eq 'zed' -and
+            (-not (Test-Path -LiteralPath (Join-Path $ideProjectPath '.project') -PathType Leaf) -or
+                -not (Test-Path -LiteralPath (Join-Path $ideProjectPath '.classpath') -PathType Leaf))) {
+            throw 'javafxsetup did not create JDTLS project metadata for Zed.'
         }
+        if ($ide -eq 'antigravity' -and
+            -not (Test-Path -LiteralPath (Join-Path $ideProjectPath '.vscode\settings.json') -PathType Leaf)) {
+            throw 'javafxsetup did not create VS Code-compatible settings for Antigravity.'
+        }
+        if ($ide -ne 'vscode' -and (Test-Path -LiteralPath (Join-Path $ideProjectPath '.vscode') -PathType Container)) {
+            if ($ide -ne 'antigravity') {
+                throw "javafxsetup configured VS Code when only '$ide' was selected."
+            }
+        }
+    }
+
+    $zedAutoProject = Join-Path $tempRoot 'zed-auto-project'
+    New-Item -ItemType Directory -Path (Join-Path $zedAutoProject '.zed') -Force | Out-Null
+    & $setupCommand.Source $zedAutoProject -IDE auto
+    if ($LASTEXITCODE -ne 0 -or
+        -not (Test-Path -LiteralPath (Join-Path $zedAutoProject '.project') -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $zedAutoProject '.classpath') -PathType Leaf)) {
+        throw 'javafxsetup auto-detection did not configure a Zed project.'
     }
 } finally {
     $env:PATH_TO_FX = $previousPathToFx

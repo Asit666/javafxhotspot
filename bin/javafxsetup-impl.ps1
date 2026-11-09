@@ -3,7 +3,7 @@ param(
     [Parameter(Position = 0)]
     [string] $ProjectDirectory = (Get-Location).Path,
 
-    [ValidateSet('auto', 'all', 'vscode', 'eclipse', 'intellij', 'netbeans')]
+    [ValidateSet('auto', 'all', 'vscode', 'eclipse', 'intellij', 'netbeans', 'zed', 'antigravity')]
     [string] $IDE = 'all'
 )
 
@@ -432,16 +432,30 @@ $modules = Get-JavaFxModules
 $configured = [System.Collections.Generic.List[string]]::new()
 $skipped = [System.Collections.Generic.List[string]]::new()
 
-if ($IDE -in @('all', 'vscode') -or
+if ($IDE -in @('all', 'vscode', 'antigravity') -or
     ($IDE -eq 'auto' -and (Test-Path -LiteralPath (Join-Path $projectPath '.vscode') -PathType Container))) {
     Set-VsCodeClassPath -Root $projectPath -Sdk $sdk
-    $configured.Add('VS Code')
+    if ($IDE -eq 'antigravity') {
+        $configured.Add('Antigravity (VS Code workspace settings)')
+    } else {
+        $configured.Add('VS Code')
+    }
 }
 
-if ($IDE -in @('all', 'eclipse') -or
-    ($IDE -eq 'auto' -and ((Test-Path (Join-Path $projectPath '.project')) -or (Test-Path (Join-Path $projectPath '.classpath'))))) {
+if ($IDE -in @('all', 'eclipse', 'zed') -or
+    ($IDE -eq 'auto' -and ((Test-Path (Join-Path $projectPath '.project')) -or
+        (Test-Path (Join-Path $projectPath '.classpath')) -or
+        (Test-Path (Join-Path $projectPath '.zed') -PathType Container)))) {
     Set-EclipseClassPath -Root $projectPath -Jars $jars
-    $configured.Add('Eclipse')
+    if ($IDE -eq 'zed') {
+        $configured.Add('Zed (JDTLS project classpath)')
+    } else {
+        $configured.Add('Eclipse')
+        if ($IDE -eq 'all' -or ($IDE -eq 'auto' -and
+            (Test-Path -LiteralPath (Join-Path $projectPath '.zed') -PathType Container))) {
+            $configured.Add('Zed (JDTLS project classpath)')
+        }
+    }
 }
 
 if ($IDE -in @('all', 'intellij') -or

@@ -93,6 +93,10 @@ By default, this configures JavaFX for the common Java IDEs:
 - **IntelliJ IDEA:** creates or updates `.idea` library/module configuration.
 - **Apache NetBeans:** updates JavaFX compile/runtime settings in an existing
   Ant project (`nbproject\project.properties`).
+- **Zed:** creates or updates Eclipse Java project metadata, which Zed's Java
+  extension (JDTLS) uses to resolve the project classpath.
+- **Google Antigravity:** writes the shared VS Code-compatible
+  `.vscode\settings.json` Java library configuration.
 
 Existing unrelated project settings and library references are preserved.
 The SDK paths are local to the current computer; run `javafxsetup` on each
@@ -106,8 +110,17 @@ javafxsetup -IDE vscode
 javafxsetup -IDE eclipse
 javafxsetup -IDE intellij
 javafxsetup -IDE netbeans
+javafxsetup -IDE zed
+javafxsetup -IDE antigravity
 javafxsetup -IDE auto
 ```
+
+For Zed, install its Java extension and open the project root after running
+`javafxsetup`. The extension uses Eclipse JDT Language Server (JDTLS); the
+generated `.project` and `.classpath` files provide the JavaFX project
+classpath. For Google Antigravity, install/enable its Java language support
+and open the configured project folder; it uses the workspace Java library
+settings written for VS Code compatibility.
 
 The command configures classpaths so the IDE can resolve `import javafx...`.
 JavaFX applications may also need JavaFX VM options in an IDE's run
