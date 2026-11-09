@@ -112,6 +112,12 @@ look like a Java project. Each IDE option configures only the selected project
 folder; running the command in the extracted JavaFX Hotspot folder does not
 configure a separate application.
 
+Each selected IDE setup is checked after writing its configuration. Successful
+targets are marked `[PASS]`; failed targets show the file or dependency that
+could not be read, written, or verified. With `-IDE all`, the command continues
+configuring other IDEs after a target fails, then exits with an error summary
+that names each failure and its cause.
+
 By default, this configures JavaFX for the common Java IDEs:
 
 - **VS Code:** adds JavaFX JARs to `.vscode\settings.json` and registers

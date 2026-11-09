@@ -140,15 +140,66 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
     $invalidSettingsPath = Join-Path $invalidProjectPath '.vscode\settings.json'
     New-Item -ItemType Directory -Path (Split-Path -Parent $invalidSettingsPath) -Force | Out-Null
     '{"files.encoding":"utf8"} /* unfinished comment' | Set-Content -LiteralPath $invalidSettingsPath
-    $invalidSettingsRejected = $false
+    $invalidSetupFailure = $null
     try {
-        & $setupScript $invalidProjectPath -IDE vscode
+        & $setupScript $invalidProjectPath -IDE all
     } catch {
-        $invalidSettingsRejected = $_.Exception.Message -match 'Could not read .* as JSONC'
+        $invalidSetupFailure = $_.Exception.Message
     }
-    if (-not $invalidSettingsRejected -or
-        (Get-Content -LiteralPath $invalidSettingsPath -Raw) -notmatch 'unfinished comment') {
-        throw 'javafxsetup should reject malformed JSONC without overwriting the existing settings.'
+    if ($invalidSetupFailure -notmatch 'JavaFX IDE setup FAILED' -or
+        $invalidSetupFailure -notmatch 'VS Code: Could not read .* as JSONC' -or
+        (Get-Content -LiteralPath $invalidSettingsPath -Raw) -notmatch 'unfinished comment' -or
+        -not (Test-Path -LiteralPath (Join-Path $invalidProjectPath '.classpath') -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $invalidProjectPath '.idea\libraries\JavaFX_Hotspot.xml') -PathType Leaf)) {
+        throw 'javafxsetup should report the JSONC failure with its cause, preserve the invalid file, and continue configuring other requested IDEs.'
+    }
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $wrapperFailureOutput = @(& $setupCommand.Source $invalidProjectPath -IDE vscode 2>&1 |
+            ForEach-Object { "$_" })
+        $wrapperFailureExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($wrapperFailureExitCode -eq 0 -or
+        ($wrapperFailureOutput -join "`n") -notmatch '\[FAIL\] VS Code: Could not read .* as JSONC' -or
+        ($wrapperFailureOutput -join "`n") -notmatch 'Unterminated JSONC block comment') {
+        throw 'javafxsetup.cmd should preserve the IDE-specific failure reason and return a non-zero exit code.'
+    }
+
+    $incompleteSdkPath = Join-Path $tempRoot 'incomplete-sdk\lib'
+    New-Item -ItemType Directory -Path $incompleteSdkPath -Force | Out-Null
+    New-Item -ItemType File -Path (Join-Path $incompleteSdkPath 'javafx.controls.jar') | Out-Null
+    $env:PATH_TO_FX = $incompleteSdkPath
+    $incompleteSdkFailure = $null
+    try {
+        & $setupScript $projectPath -IDE intellij
+    } catch {
+        $incompleteSdkFailure = $_.Exception.Message
+    } finally {
+        $env:PATH_TO_FX = $sdkPath
+    }
+    if ($incompleteSdkFailure -notmatch 'SDK folder .* is incomplete' -or
+        $incompleteSdkFailure -notmatch 'javafx\.base\.jar' -or
+        $incompleteSdkFailure -notmatch 'javafx\.graphics\.jar' -or
+        $incompleteSdkFailure -notmatch 'javafx\.fxml\.jar') {
+        throw 'javafxsetup should report the exact missing required JARs when the SDK is incomplete.'
+    }
+
+    $invalidIntelliJPath = Join-Path $tempRoot 'invalid-intellij-project'
+    $invalidIntelliJIdeaPath = Join-Path $invalidIntelliJPath '.idea'
+    New-Item -ItemType Directory -Path $invalidIntelliJIdeaPath -Force | Out-Null
+    '<not-a-project />' | Set-Content -LiteralPath (Join-Path $invalidIntelliJIdeaPath 'modules.xml')
+    $invalidIntelliJFailure = $null
+    try {
+        & $setupScript $invalidIntelliJPath -IDE intellij
+    } catch {
+        $invalidIntelliJFailure = $_.Exception.Message
+    }
+    if ($invalidIntelliJFailure -notmatch 'IntelliJ IDEA: Unexpected XML root' -or
+        $invalidIntelliJFailure -notmatch [regex]::Escape((Join-Path $invalidIntelliJIdeaPath 'modules.xml'))) {
+        throw 'javafxsetup should identify the exact malformed IntelliJ metadata file and expected XML root.'
     }
 
     $staleIntelliJPath = Join-Path $tempRoot 'stale-intellij-project'

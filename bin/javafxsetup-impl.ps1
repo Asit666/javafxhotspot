@@ -438,7 +438,6 @@ function Set-IntelliJClassPath {
         }
     }
 
-    $createdModule = $false
     if ($modules.Count -eq 0) {
         $modulePath = Join-Path $Root ((Split-Path -Leaf $Root) + '.iml')
         $module = New-Object System.Xml.XmlDocument
@@ -473,7 +472,6 @@ function Set-IntelliJClassPath {
         $moduleRoot.AppendChild($manager) | Out-Null
         Write-ProjectXml -Document $module -Path $modulePath
         $modules = @(Get-Item -LiteralPath $modulePath)
-        $createdModule = $true
     }
 
     foreach ($moduleFile in $modules) {
@@ -556,9 +554,6 @@ function Set-IntelliJClassPath {
         }
     }
     Write-ProjectXml -Document $modulesDocument -Path $modulesPath
-    if ($createdModule) {
-        Write-Host "Created IntelliJ module '$($modules[0].Name)' with JavaFX configured."
-    }
 }
 
 function Set-NetBeansClassPath {
@@ -639,14 +634,65 @@ function Set-NetBeansClassPath {
     $true
 }
 
-$sdk = Get-InstalledJavaFxPath
-if (-not $sdk) {
-    throw 'JavaFX SDK is not configured. Run install.ps1 from the JavaFX Hotspot repository.'
+function Invoke-IdeSetup {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true)]
+        [scriptblock] $Action,
+
+        [Parameter(Mandatory = $true)]
+        [scriptblock] $Validate,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]] $Configured,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]] $Failures
+    )
+
+    try {
+        & $Action
+        & $Validate
+        $Configured.Add($Name)
+        Write-Host "[PASS] ${Name}: setup files written and verified." -ForegroundColor Green
+    } catch {
+        $reason = $_.Exception.Message
+        $Failures.Add("${Name}: $reason")
+        Write-Host "[FAIL] ${Name}: $reason" -ForegroundColor Red
+    }
 }
 
-$projectPath = [System.IO.Path]::GetFullPath($ProjectDirectory)
+$sdkCandidates = @(
+    $env:PATH_TO_FX,
+    [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+$sdk = Get-InstalledJavaFxPath
+if (-not $sdk) {
+    $candidateDescription = if ($sdkCandidates.Count -gt 0) {
+        $sdkCandidates -join '; '
+    } else {
+        '(PATH_TO_FX is not set)'
+    }
+    $message = "JavaFX SDK was not found. Checked PATH_TO_FX location(s): $candidateDescription. Each SDK folder must contain javafx.controls.jar. Run install.ps1, then open a new terminal."
+    Write-Host "[FAIL] JavaFX SDK: $message" -ForegroundColor Red
+    throw $message
+}
+
+try {
+    $projectPath = [System.IO.Path]::GetFullPath($ProjectDirectory)
+} catch {
+    $message = "Could not resolve project folder '$ProjectDirectory': $($_.Exception.Message)"
+    Write-Host "[FAIL] Project folder: $message" -ForegroundColor Red
+    throw $message
+}
 if (-not (Test-Path -LiteralPath $projectPath -PathType Container)) {
-    throw "Project folder does not exist: $projectPath"
+    $message = "Project folder does not exist: $projectPath"
+    Write-Host "[FAIL] Project folder: $message" -ForegroundColor Red
+    throw $message
 }
 
 $sourceDirectories = @(
@@ -672,61 +718,192 @@ if (-not $hasSourceDirectory -and -not $hasProjectFile -and -not $hasJavaSource)
     Write-Warning "No Java source folder or project file was found in '$projectPath'. javafxsetup configures this folder only; run it from your application's project root."
 }
 
-$jars = @(Get-ChildItem -LiteralPath $sdk -Filter 'javafx*.jar' -File | Sort-Object Name)
-if ($jars.Count -eq 0) {
-    throw "No JavaFX JARs were found in the installed SDK folder '$sdk'."
+$requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
+$missingJars = @($requiredJars | Where-Object {
+    -not (Test-Path -LiteralPath (Join-Path $sdk $_) -PathType Leaf)
+})
+if ($missingJars.Count -gt 0) {
+    $message = "The JavaFX SDK folder '$sdk' is incomplete. Missing required JAR(s): $($missingJars -join ', '). Reinstall JavaFX Hotspot to repair the SDK."
+    Write-Host "[FAIL] JavaFX SDK: $message" -ForegroundColor Red
+    throw $message
 }
-$modules = Get-JavaFxModules
+$jars = @(Get-ChildItem -LiteralPath $sdk -Filter 'javafx*.jar' -File | Sort-Object Name)
+try {
+    $modules = Get-JavaFxModules
+} catch {
+    $message = "Invalid JavaFX module configuration: $($_.Exception.Message)"
+    Write-Host "[FAIL] JavaFX modules: $message" -ForegroundColor Red
+    throw $message
+}
 $configured = [System.Collections.Generic.List[string]]::new()
 $skipped = [System.Collections.Generic.List[string]]::new()
+$failures = [System.Collections.Generic.List[string]]::new()
 
-if ($IDE -in @('all', 'vscode', 'antigravity') -or
-    ($IDE -eq 'auto' -and (Test-Path -LiteralPath (Join-Path $projectPath '.vscode') -PathType Container))) {
-    Set-VsCodeClassPath -Root $projectPath -Sdk $sdk
-    if ($IDE -eq 'antigravity') {
-        $configured.Add('Antigravity (VS Code workspace settings)')
-    } else {
-        $configured.Add('VS Code')
-    }
+$runVsCode = $IDE -in @('all', 'vscode', 'antigravity') -or
+    ($IDE -eq 'auto' -and (Test-Path -LiteralPath (Join-Path $projectPath '.vscode') -PathType Container))
+if ($runVsCode) {
+    $name = if ($IDE -eq 'antigravity') { 'Antigravity (VS Code workspace settings)' } else { 'VS Code' }
+    Invoke-IdeSetup -Name $name -Action {
+        Set-VsCodeClassPath -Root $projectPath -Sdk $sdk
+    } -Validate {
+        $settingsPath = Join-Path $projectPath '.vscode\settings.json'
+        try {
+            $hadJsoncSyntax = $false
+            $settings = ConvertFrom-JsonWithComments -JsonText (Get-Content -LiteralPath $settingsPath -Raw) `
+                -HadJsoncSyntax ([ref]$hadJsoncSyntax)
+        } catch {
+            throw "Could not validate '$settingsPath' after writing it: $($_.Exception.Message)"
+        }
+        $libraries = @($settings.'java.project.referencedLibraries')
+        $expectedLibraryPath = ($sdk.TrimEnd('\', '/') + '/*.jar').Replace('\', '/')
+        if ($libraries -notcontains $expectedLibraryPath) {
+            throw "The JavaFX SDK reference '$expectedLibraryPath' is missing from java.project.referencedLibraries in '$settingsPath'."
+        }
+        if ((Test-Path -LiteralPath (Join-Path $projectPath 'src\main\java') -PathType Container) -and
+            @($settings.'java.project.sourcePaths') -notcontains 'src/main/java') {
+            throw "The Java source root src/main/java is missing from '$settingsPath'."
+        }
+    } -Configured $configured -Failures $failures
 }
 
-if ($IDE -in @('all', 'eclipse', 'zed') -or
+$runEclipse = $IDE -in @('all', 'eclipse', 'zed') -or
     ($IDE -eq 'auto' -and ((Test-Path (Join-Path $projectPath '.project')) -or
         (Test-Path (Join-Path $projectPath '.classpath')) -or
-        (Test-Path (Join-Path $projectPath '.zed') -PathType Container)))) {
-    Set-EclipseClassPath -Root $projectPath -Jars $jars
-    if ($IDE -eq 'zed') {
-        $configured.Add('Zed (JDTLS project classpath)')
-    } else {
-        $configured.Add('Eclipse')
-        if ($IDE -eq 'all' -or ($IDE -eq 'auto' -and
-            (Test-Path -LiteralPath (Join-Path $projectPath '.zed') -PathType Container))) {
-            $configured.Add('Zed (JDTLS project classpath)')
+        (Test-Path (Join-Path $projectPath '.zed') -PathType Container)))
+if ($runEclipse) {
+    $name = if ($IDE -eq 'zed') { 'Zed (JDTLS project classpath)' } else { 'Eclipse' }
+    Invoke-IdeSetup -Name $name -Action {
+        Set-EclipseClassPath -Root $projectPath -Jars $jars
+    } -Validate {
+        $classpathPath = Join-Path $projectPath '.classpath'
+        $projectFilePath = Join-Path $projectPath '.project'
+        $classpath = Read-ProjectXml -Path $classpathPath -RootName 'classpath'
+        $projectFile = Read-ProjectXml -Path $projectFilePath -RootName 'projectDescription'
+        foreach ($jar in $jars) {
+            $expectedPath = $jar.FullName.Replace('\', '/')
+            if (@($classpath.DocumentElement.SelectNodes("classpathentry[@kind='lib']") | Where-Object {
+                $_.GetAttribute('path') -eq $expectedPath
+            }).Count -ne 1) {
+                throw "JavaFX JAR '$expectedPath' is missing from '$classpathPath'."
+            }
         }
+        if (-not $projectFile.DocumentElement.SelectSingleNode("natures/nature[.='org.eclipse.jdt.core.javanature']")) {
+            throw "The Eclipse Java nature is missing from '$projectFilePath'."
+        }
+    } -Configured $configured -Failures $failures
+    if ($IDE -eq 'all' -or ($IDE -eq 'auto' -and
+        (Test-Path -LiteralPath (Join-Path $projectPath '.zed') -PathType Container))) {
+        $configured.Add('Zed (JDTLS project classpath)')
+        Write-Host '[PASS] Zed (JDTLS project classpath): uses the verified Eclipse .project and .classpath files.' -ForegroundColor Green
     }
 }
 
-if ($IDE -in @('all', 'intellij') -or
+$runIntelliJ = $IDE -in @('all', 'intellij') -or
     ($IDE -eq 'auto' -and ((Test-Path (Join-Path $projectPath '.idea')) -or
-        @(Get-ChildItem -LiteralPath $projectPath -Filter '*.iml' -File).Count -gt 0))) {
-    Set-IntelliJClassPath -Root $projectPath -Jars $jars
-    $configured.Add('IntelliJ IDEA')
+        @(Get-ChildItem -LiteralPath $projectPath -Filter '*.iml' -File).Count -gt 0))
+if ($runIntelliJ) {
+    Invoke-IdeSetup -Name 'IntelliJ IDEA' -Action {
+        Set-IntelliJClassPath -Root $projectPath -Jars $jars
+    } -Validate {
+        $modulesPath = Join-Path $projectPath '.idea\modules.xml'
+        $moduleDocument = Read-ProjectXml -Path $modulesPath -RootName 'project'
+        $entries = @($moduleDocument.DocumentElement.SelectNodes("component[@name='ProjectModuleManager']/modules/module"))
+        $localModuleFiles = @(Get-ChildItem -LiteralPath $projectPath -Filter '*.iml' -File)
+        $modulePrefix = $projectPath.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        if ($localModuleFiles.Count -eq 0) {
+            throw "No IntelliJ .iml module file exists in '$projectPath'."
+        }
+        foreach ($moduleFile in $localModuleFiles) {
+            $relative = $moduleFile.FullName.Substring($modulePrefix.Length).Replace('\', '/')
+            $moduleUrl = 'file://$PROJECT_DIR$/' + $relative
+            $moduleFilePath = '$PROJECT_DIR$/' + $relative
+            if (@($entries | Where-Object {
+                $_.GetAttribute('fileurl') -eq $moduleUrl -and
+                $_.GetAttribute('filepath') -eq $moduleFilePath
+            }).Count -ne 1) {
+                throw "IntelliJ module '$($moduleFile.Name)' is not correctly registered by both filepath and fileurl in '$modulesPath'."
+            }
+            $moduleDocument = Read-ProjectXml -Path $moduleFile.FullName -RootName 'module'
+            $libraryEntry = @($moduleDocument.DocumentElement.SelectNodes(
+                "component[@name='NewModuleRootManager']/orderEntry[@type='module-library']/library[@name='JavaFX Hotspot']"))
+            if ($libraryEntry.Count -ne 1) {
+                throw "Module '$($moduleFile.Name)' does not contain the embedded JavaFX Hotspot module library. IntelliJ may be using a different module file."
+            }
+            foreach ($jar in $jars) {
+                $expectedUrl = 'jar://' + $jar.FullName.Replace('\', '/') + '!/'
+                if (@($libraryEntry[0].SelectNodes("CLASSES/root[@url='$expectedUrl']")).Count -ne 1) {
+                    throw "Module '$($moduleFile.Name)' does not reference JavaFX JAR '$expectedUrl'."
+                }
+            }
+        }
+    } -Configured $configured -Failures $failures
+    if ((Test-Path -LiteralPath (Join-Path $projectPath 'pom.xml') -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $projectPath 'build.gradle') -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $projectPath 'build.gradle.kts') -PathType Leaf)) {
+        Write-Warning "This project has a Maven or Gradle build file. IntelliJ imports its dependencies from that build file and may ignore .iml changes; add JavaFX to the build file and reload the Maven/Gradle project if imports remain unresolved."
+    }
 }
 
 $netBeansProperties = Join-Path $projectPath 'nbproject\project.properties'
-if (($IDE -in @('all', 'netbeans') -or $IDE -eq 'auto') -and
-    (Test-Path -LiteralPath $netBeansProperties -PathType Leaf)) {
-    Set-NetBeansClassPath -Root $projectPath -Jars $jars -Sdk $sdk -Modules $modules | Out-Null
-    $configured.Add('Apache NetBeans')
+$runNetBeans = $IDE -in @('all', 'netbeans') -or
+    ($IDE -eq 'auto' -and (Test-Path -LiteralPath $netBeansProperties -PathType Leaf))
+if ($runNetBeans -and (Test-Path -LiteralPath $netBeansProperties -PathType Leaf)) {
+    Invoke-IdeSetup -Name 'Apache NetBeans' -Action {
+        $result = Set-NetBeansClassPath -Root $projectPath -Jars $jars -Sdk $sdk -Modules $modules
+        if (-not $result) {
+            throw "NetBeans setup did not update '$netBeansProperties'."
+        }
+    } -Validate {
+        $properties = Get-Content -LiteralPath $netBeansProperties -Raw
+        foreach ($jar in $jars) {
+            $reference = 'file.reference.' + $jar.Name + '=' + $jar.FullName.Replace('\', '/')
+            if ($properties -notmatch [regex]::Escape($reference)) {
+                throw "JavaFX reference '$reference' is missing from '$netBeansProperties'."
+            }
+        }
+        if ($properties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.javafx\.controls\.jar\}') {
+            throw "JavaFX controls is missing from the javac.classpath in '$netBeansProperties'."
+        }
+        if ($properties -notmatch '(?m)^run\.jvmargs=.*--module-path') {
+            throw "JavaFX module-path arguments are missing from run.jvmargs in '$netBeansProperties'."
+        }
+        if ($properties -notmatch ('(?m)^run\.jvmargs=.*--add-modules\s+' + [regex]::Escape($modules))) {
+            throw "JavaFX module list '$modules' is missing from run.jvmargs in '$netBeansProperties'."
+        }
+    } -Configured $configured -Failures $failures
 } elseif ($IDE -eq 'netbeans') {
-    throw "No NetBeans Ant project was found at '$projectPath'. Open or create a Java with Ant project first."
-} elseif ($IDE -ne 'netbeans') {
-    $skipped.Add('Apache NetBeans (no nbproject\project.properties found)')
+    $reason = "No NetBeans Ant project file was found at '$netBeansProperties'. Open or create a Java with Ant project first."
+    $failures.Add("Apache NetBeans: $reason")
+    Write-Host "[FAIL] Apache NetBeans: $reason" -ForegroundColor Red
+} elseif ($IDE -eq 'all') {
+    $message = "no '$netBeansProperties' file"
+    $skipped.Add("Apache NetBeans (not an Ant project: $message)")
 }
 
-Write-Host "JavaFX configured in: $projectPath"
-Write-Host "JavaFX configured for: $($configured -join ', ')"
-foreach ($message in $skipped) {
-    Write-Host "Skipped $message"
+if ($IDE -eq 'all' -and -not $runIntelliJ) {
+    $skipped.Add('IntelliJ IDEA (no .idea folder or .iml module found)')
 }
-Write-Host 'If an IDE still shows stale import errors, reload the project or refresh its Java classpath.'
+if ($IDE -eq 'auto') {
+    if (-not $runVsCode) { $skipped.Add('VS Code (no .vscode folder found)') }
+    if (-not $runEclipse) { $skipped.Add('Eclipse (no .project, .classpath, or .zed configuration found)') }
+    if (-not $runIntelliJ) { $skipped.Add('IntelliJ IDEA (no .idea folder or .iml module found)') }
+    if (-not $runNetBeans) { $skipped.Add('Apache NetBeans (no nbproject\project.properties found)') }
+}
+
+Write-Host "JavaFX setup target: $projectPath"
+if ($configured.Count -gt 0) {
+    Write-Host "Verified: $($configured -join ', ')"
+}
+foreach ($message in $skipped) {
+    Write-Host "[SKIP] $message" -ForegroundColor Yellow
+}
+if ($failures.Count -gt 0) {
+    $failureList = ($failures | ForEach-Object { " - $_" }) -join [Environment]::NewLine
+    throw "JavaFX IDE setup FAILED for $($failures.Count) target(s):$([Environment]::NewLine)$failureList"
+}
+if ($configured.Count -eq 0) {
+    $message = "No IDE was configured for '$projectPath'. Select an IDE with -IDE or create the corresponding project files and use -IDE auto."
+    Write-Host "[FAIL] IDE selection: $message" -ForegroundColor Red
+    throw $message
+}
+Write-Host 'IDE configuration files were verified. If an IDE still shows unresolved imports, check the project/module folder open in that IDE and refresh its build or project model.'
