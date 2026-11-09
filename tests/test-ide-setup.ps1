@@ -58,8 +58,19 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
   <classpathentry kind="output" path="bin"/>
 </classpath>
 '@ | Set-Content -LiteralPath (Join-Path $projectPath '.classpath')
+  @'
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager">
+  <content url="file://$MODULE_DIR$">
+    <sourceFolder url="file://$MODULE_DIR$/src/test/java" isTestSource="true"/>
+  </content>
+  <orderEntry type="inheritedJdk"/>
+  </component>
+</module>
+'@ | Set-Content -LiteralPath (Join-Path $projectPath 'project.iml')
 
-    & $setupCommand.Source $projectPath -IDE all
+  & $setupCommand.Source $projectPath -IDE all
     if ($LASTEXITCODE -ne 0) {
         throw 'The javafxsetup command wrapper failed on the first run.'
     }
@@ -100,7 +111,13 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         @($eclipseProject.projectDescription.natures.nature | Where-Object { $_ -eq 'org.eclipse.jdt.core.javanature' }).Count -ne 1 -or
         @($intellijLibrary.component.library.CLASSES.root | Where-Object { $_.url -like 'jar://*/javafx.controls.jar!/' }).Count -ne 1 -or
         @($intellijModule.module.component.content.sourceFolder | Where-Object {
+            $_.url -eq 'file://$MODULE_DIR$/src/main/java' -and $_.isTestSource -eq 'false'
+        }).Count -ne 1 -or
+        @($intellijModule.module.component.content.sourceFolder | Where-Object {
             $_.url -eq 'file://$MODULE_DIR$/src/main/resources' -and $_.type -eq 'java-resource'
+        }).Count -ne 1 -or
+        @($intellijModule.module.component.content.sourceFolder | Where-Object {
+            $_.url -eq 'file://$MODULE_DIR$/src/test/java' -and $_.isTestSource -eq 'true'
         }).Count -ne 1 -or
         @($intellijModule.module.component.orderEntry | Where-Object { $_.name -eq 'JavaFX Hotspot' }).Count -ne 1 -or
         @($intellijModules.project.component.modules.module | Where-Object { $_.filepath -eq '$PROJECT_DIR$/project.iml' }).Count -ne 1 -or

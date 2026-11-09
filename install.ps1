@@ -119,6 +119,9 @@ $processEntries = @($env:PATH -split ';' | Where-Object {
     $_ -and $_.TrimEnd('\') -ine $bin.TrimEnd('\')
 })
 $env:PATH = $bin + ';' + ($processEntries -join ';')
+if (-not (Publish-EnvironmentChange)) {
+    Write-Warning 'Windows did not notify open applications about the PATH update. Open a new terminal or refresh PATH manually.'
+}
 
 Write-Host ''
 Write-Host "JavaFX $($release.version) installed at $sdkLib"

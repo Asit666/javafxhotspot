@@ -1,5 +1,33 @@
 Set-StrictMode -Version Latest
 
+function Publish-EnvironmentChange {
+    if (-not ('JavaFxHotspotEnvironment' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class JavaFxHotspotEnvironment
+{
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd, uint message, UIntPtr wParam, string lParam,
+        uint flags, uint timeout, out UIntPtr result);
+}
+'@ -ErrorAction Stop
+    }
+
+    $result = [UIntPtr]::Zero
+    $status = [JavaFxHotspotEnvironment]::SendMessageTimeout(
+        [IntPtr] 65535,
+        0x001A,
+        [UIntPtr]::Zero,
+        'Environment',
+        0x0002,
+        5000,
+        [ref] $result)
+    $status -ne [IntPtr]::Zero
+}
+
 function Get-JavaToolInfo {
     param(
         [Parameter(Mandatory = $true)]

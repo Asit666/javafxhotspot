@@ -270,15 +270,15 @@ Application arguments go **after** the class name:
 javafx MyApp --demo
 ```
 
-If an application argument looks like a JavaFX Hotspot/JVM option, put `--`
-before the application's arguments to make the separation explicit:
+Application arguments are passed through as-is, including arguments that look
+like JVM options, because JVM memory options are only read before the class name:
 
 ```powershell
-javafx -Xmx512m MyApp -- -Xmx-is-an-app-argument
+javafx -Xmx512m MyApp -Xmx-is-an-app-argument
 ```
 
-In this example, `-Xmx512m` sets the JVM heap; the text after `--` is passed to
-`MyApp` as an application argument.
+Here, `-Xmx512m` sets the JVM heap; `-Xmx-is-an-app-argument` is passed to
+`MyApp`.
 
 JavaFX Hotspot sets up the JavaFX module path and compiled-class path for these
 commands. By default it enables `javafx.controls` and `javafx.fxml`. If your

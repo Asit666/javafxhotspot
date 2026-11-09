@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
+    [Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
     [string[]] $CommandArguments
 )
 
@@ -19,14 +19,8 @@ if (-not $CommandArguments -or $CommandArguments.Count -eq 0) {
 $vmOptions = [System.Collections.Generic.List[string]]::new()
 $programArguments = [System.Collections.Generic.List[string]]::new()
 $className = $null
-$readingProgramArguments = $false
 foreach ($argument in $CommandArguments) {
-    if (-not $readingProgramArguments -and $argument -eq '--') {
-        $readingProgramArguments = $true
-        continue
-    }
-
-    if (-not $className -and -not $readingProgramArguments -and $argument -match '^-Xm([sx])(.+)$') {
+    if (-not $className -and $argument -match '^-Xm([sx])(.+)$') {
         if ($argument -notmatch '^-Xm[sx][1-9]\d*[kKmMgG]?$') {
             throw "Invalid JVM memory option '$argument'. Use a positive size such as -Xmx512m."
         }

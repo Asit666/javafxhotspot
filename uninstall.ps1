@@ -16,6 +16,9 @@ $sdkPrefix = (Join-Path $installRoot 'sdk').TrimEnd('\') + '\'
 if ($userFxPath -and $userFxPath.StartsWith($sdkPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     [Environment]::SetEnvironmentVariable('PATH_TO_FX', $null, 'User')
 }
+if (-not (Publish-EnvironmentChange)) {
+    Write-Warning 'Windows did not notify open applications about the PATH update. Open a new terminal to refresh its environment.'
+}
 
 if (Test-Path -LiteralPath $installRoot) {
     Remove-Item -LiteralPath $installRoot -Recurse -Force

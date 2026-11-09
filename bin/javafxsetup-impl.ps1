@@ -419,27 +419,32 @@ function Set-IntelliJClassPath {
             $manager.SetAttribute('name', 'NewModuleRootManager')
             $module.DocumentElement.AppendChild($manager) | Out-Null
         }
-        $resourceDirectory = Join-Path $Root 'src\main\resources'
-        if (Test-Path -LiteralPath $resourceDirectory -PathType Container) {
-            $content = $manager.SelectSingleNode('content')
+        $content = $manager.SelectSingleNode('content')
+        foreach ($sourceRoot in @(
+            @{ Directory = 'src\main\java'; Url = 'file://$MODULE_DIR$/src/main/java'; Type = $null },
+            @{ Directory = 'src\main\resources'; Url = 'file://$MODULE_DIR$/src/main/resources'; Type = 'java-resource' }
+        )) {
+            if (-not (Test-Path -LiteralPath (Join-Path $Root $sourceRoot.Directory) -PathType Container)) {
+                continue
+            }
             if (-not $content) {
                 $content = $module.CreateElement('content')
                 $content.SetAttribute('url', 'file://$MODULE_DIR$')
                 $manager.AppendChild($content) | Out-Null
             }
-            $resourceUrl = 'file://$MODULE_DIR$/src/main/resources'
-            $hasResourceRoot = $false
-            foreach ($sourceFolder in @($content.SelectNodes('sourceFolder'))) {
-                if ($sourceFolder.GetAttribute('url') -eq $resourceUrl) {
-                    $sourceFolder.SetAttribute('type', 'java-resource')
-                    $hasResourceRoot = $true
-                }
-            }
-            if (-not $hasResourceRoot) {
+
+            $sourceFolder = @($content.SelectNodes('sourceFolder') | Where-Object {
+                $_.GetAttribute('url') -eq $sourceRoot.Url
+            }) | Select-Object -First 1
+            if (-not $sourceFolder) {
                 $sourceFolder = $module.CreateElement('sourceFolder')
-                $sourceFolder.SetAttribute('url', $resourceUrl)
-                $sourceFolder.SetAttribute('type', 'java-resource')
+                $sourceFolder.SetAttribute('url', $sourceRoot.Url)
                 $content.AppendChild($sourceFolder) | Out-Null
+            }
+            if ($sourceRoot.Type) {
+                $sourceFolder.SetAttribute('type', $sourceRoot.Type)
+            } elseif (-not $sourceFolder.HasAttribute('isTestSource')) {
+                $sourceFolder.SetAttribute('isTestSource', 'false')
             }
         }
         $hasLibrary = $false

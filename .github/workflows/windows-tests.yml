@@ -64,6 +64,9 @@ jobs:
           import javafx.scene.paint.Color;
           public class Smoke {
               public static void main(String[] args) {
+                  if (args.length != 1 || !args[0].equals("-Xmx-is-app-argument")) {
+                      throw new IllegalStateException("Application arguments were not forwarded.");
+                  }
                   var fxml = Smoke.class.getResource("/smoke/main.fxml");
                   var css = Smoke.class.getResource("/smoke/app.css");
                   if (fxml == null || css == null) {
@@ -104,7 +107,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw 'javafxc failed to compile the packaged smoke test.'
             }
-            $output = & (Join-Path $bin 'javafx.cmd') Smoke
+            $output = & (Join-Path $bin 'javafx.cmd') Smoke -Xmx-is-app-argument
             if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'JavaFX Hotspot smoke test passed 0xff0000ff') {
               throw "javafx failed to run the packaged smoke test. Output: $($output -join ' ')"
             }
