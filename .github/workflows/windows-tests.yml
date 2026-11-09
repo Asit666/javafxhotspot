@@ -37,9 +37,9 @@ jobs:
       - name: Test JavaFX/JDK compatibility table
         shell: pwsh
         run: ./tests/test-version-mapping.ps1
-      - name: Test VS Code JavaFX classpath setup
+      - name: Test multi-IDE JavaFX setup
         shell: pwsh
-        run: ./tests/test-vscode-setup.ps1
+        run: ./tests/test-ide-setup.ps1
       - name: Install SDK and smoke-test commands
         shell: pwsh
         run: |

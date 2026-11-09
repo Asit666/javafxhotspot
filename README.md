@@ -78,32 +78,41 @@ Open PowerShell, Command Prompt, Windows Terminal, or your IDE's terminal in
 your project folder. This is the folder where JavaFX Hotspot will put the
 compiled files in `build\classes`.
 
-### Configure VS Code imports
+### Configure IDE JavaFX imports
 
-After installing JavaFX Hotspot, open your Java project folder in VS Code and
-run this once in its terminal:
+After installing JavaFX Hotspot, open a terminal in your Java project and run:
 
 ```powershell
 javafxsetup
 ```
 
-Open a new terminal after installing JavaFX Hotspot so it can find the command
-and read the `PATH_TO_FX` setting. If VS Code was already open during
-installation, restart VS Code first so it picks up the updated user PATH.
+By default, this configures JavaFX for the common Java IDEs:
 
-This adds the installed JavaFX JARs to `.vscode\settings.json` so VS Code's
-Java language server can resolve `import javafx...` statements. It preserves
-other workspace settings and library references, and replaces an outdated
-JavaFX SDK path if one is already configured. You can also configure a
-different project by passing its folder:
+- **VS Code:** adds JavaFX JARs to `.vscode\settings.json`.
+- **Eclipse:** creates or updates `.project` and `.classpath`.
+- **IntelliJ IDEA:** creates or updates `.idea` library/module configuration.
+- **Apache NetBeans:** updates JavaFX compile/runtime settings in an existing
+  Ant project (`nbproject\project.properties`).
+
+Existing unrelated project settings and library references are preserved.
+The SDK paths are local to the current computer; run `javafxsetup` on each
+computer after installing JavaFX Hotspot. Run the command from a new terminal
+after installation; restart the IDE if it was open during installation.
+
+To configure one IDE only, or detect project formats already present, use:
 
 ```powershell
-javafxsetup C:\path\to\your\project
+javafxsetup -IDE vscode
+javafxsetup -IDE eclipse
+javafxsetup -IDE intellij
+javafxsetup -IDE netbeans
+javafxsetup -IDE auto
 ```
 
-If VS Code still shows old import errors after the command completes, run
-**Java: Clean Java Language Server Workspace** from the Command Palette, then
-reload the window.
+The command configures classpaths so the IDE can resolve `import javafx...`.
+JavaFX applications may also need JavaFX VM options in an IDE's run
+configuration; `javafxc` and `javafx` provide ready-to-use compile/run commands
+in any IDE terminal.
 
 If `javafxsetup` is not recognized, the installed commands are from an older
 version. Download the latest repository ZIP and rerun `install.ps1`; the
