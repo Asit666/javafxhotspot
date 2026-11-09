@@ -78,6 +78,38 @@ Open PowerShell, Command Prompt, Windows Terminal, or your IDE's terminal in
 your project folder. This is the folder where JavaFX Hotspot will put the
 compiled files in `build\classes`.
 
+### Configure VS Code imports
+
+After installing JavaFX Hotspot, open your Java project folder in VS Code and
+run this once in its terminal:
+
+```powershell
+javafxsetup
+```
+
+Open a new terminal after installing JavaFX Hotspot so it can find the command
+and read the `PATH_TO_FX` setting. If VS Code was already open during
+installation, restart VS Code first so it picks up the updated user PATH.
+
+This adds the installed JavaFX JARs to `.vscode\settings.json` so VS Code's
+Java language server can resolve `import javafx...` statements. It preserves
+other workspace settings and library references, and replaces an outdated
+JavaFX SDK path if one is already configured. You can also configure a
+different project by passing its folder:
+
+```powershell
+javafxsetup C:\path\to\your\project
+```
+
+If VS Code still shows old import errors after the command completes, run
+**Java: Clean Java Language Server Workspace** from the Command Palette, then
+reload the window.
+
+If `javafxsetup` is not recognized, the installed commands are from an older
+version. Download the latest repository ZIP and rerun `install.ps1`; the
+installer updates the commands without downloading JavaFX again when the
+compatible SDK is already installed.
+
 ### Compile your code
 
 ```powershell

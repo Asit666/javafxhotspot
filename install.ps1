@@ -82,8 +82,10 @@ New-Item -ItemType Directory -Path $bin -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $installRoot 'scripts') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx.cmd') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc.ps1') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx.ps1') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup.ps1') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'scripts\common.ps1') -Destination (Join-Path $installRoot 'scripts\common.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'javafx-versions.json') -Destination $installRoot -Force
 
@@ -103,5 +105,6 @@ $env:PATH = $bin + ';' + ($processEntries -join ';')
 Write-Host ''
 Write-Host "JavaFX $($release.version) installed at $sdkLib"
 Write-Host 'Open a new terminal, then use:'
+Write-Host '  javafxsetup'
 Write-Host '  javafxc MyApp.java'
 Write-Host '  javafx MyApp'

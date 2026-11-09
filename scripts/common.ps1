@@ -94,12 +94,15 @@ function Get-CurrentJdk {
 }
 
 function Get-InstalledJavaFxPath {
-    if (-not $env:PATH_TO_FX) {
-        return $null
-    }
+    $candidates = @(
+        $env:PATH_TO_FX,
+        [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
-    if (Test-Path -LiteralPath (Join-Path $env:PATH_TO_FX 'javafx.controls.jar') -PathType Leaf) {
-        return $env:PATH_TO_FX
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath (Join-Path $candidate 'javafx.controls.jar') -PathType Leaf) {
+            return $candidate
+        }
     }
 
     $null
