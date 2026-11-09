@@ -512,20 +512,30 @@ function Set-IntelliJClassPath {
                 $sourceFolder.SetAttribute('isTestSource', 'false')
             }
         }
-        $hasLibrary = $false
-        foreach ($orderEntry in @($manager.SelectNodes("orderEntry[@type='library']"))) {
-            if ($orderEntry.GetAttribute('name') -eq 'JavaFX Hotspot' -and
-                $orderEntry.GetAttribute('level') -eq 'project') {
-                $hasLibrary = $true
+        foreach ($orderEntry in @($manager.SelectNodes('orderEntry'))) {
+            $library = $orderEntry.SelectSingleNode('library')
+            if (($orderEntry.GetAttribute('type') -eq 'library' -and
+                    $orderEntry.GetAttribute('name') -eq 'JavaFX Hotspot') -or
+                ($orderEntry.GetAttribute('type') -eq 'module-library' -and
+                    $library -and $library.GetAttribute('name') -eq 'JavaFX Hotspot')) {
+                $manager.RemoveChild($orderEntry) | Out-Null
             }
         }
-        if (-not $hasLibrary) {
-            $orderEntry = $module.CreateElement('orderEntry')
-            $orderEntry.SetAttribute('type', 'library')
-            $orderEntry.SetAttribute('name', 'JavaFX Hotspot')
-            $orderEntry.SetAttribute('level', 'project')
-            $manager.AppendChild($orderEntry) | Out-Null
+        $orderEntry = $module.CreateElement('orderEntry')
+        $orderEntry.SetAttribute('type', 'module-library')
+        $moduleLibrary = $module.CreateElement('library')
+        $moduleLibrary.SetAttribute('name', 'JavaFX Hotspot')
+        $classes = $module.CreateElement('CLASSES')
+        foreach ($jar in $Jars) {
+            $jarRootElement = $module.CreateElement('root')
+            $jarRootElement.SetAttribute('url', 'jar://' + $jar.FullName.Replace('\', '/') + '!/')
+            $classes.AppendChild($jarRootElement) | Out-Null
         }
+        $moduleLibrary.AppendChild($classes) | Out-Null
+        $moduleLibrary.AppendChild($module.CreateElement('JAVADOC')) | Out-Null
+        $moduleLibrary.AppendChild($module.CreateElement('SOURCES')) | Out-Null
+        $orderEntry.AppendChild($moduleLibrary) | Out-Null
+        $manager.AppendChild($orderEntry) | Out-Null
         Write-ProjectXml -Document $module -Path $moduleFile.FullName
     }
 

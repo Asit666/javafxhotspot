@@ -118,9 +118,9 @@ By default, this configures JavaFX for the common Java IDEs:
   `src\main\java` as a source folder when present.
 - **Eclipse:** creates or updates `.project` and `.classpath`, including
   `src\main\resources` as a source root when present.
-- **IntelliJ IDEA:** creates or updates `.idea` library/module configuration,
-  reconciles stale project-local module references, and includes the
-  `src\main\resources` resource root when present.
+- **IntelliJ IDEA:** embeds the JavaFX JARs in the module dependency, repairs
+  stale project-local module references, and includes `src\main\resources`
+  when present.
 - **Apache NetBeans:** updates JavaFX compile/runtime settings in an existing
   Ant project (`nbproject\project.properties`).
 - **Zed:** creates or updates Eclipse Java project metadata, which Zed's Java

@@ -119,7 +119,12 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         @($intellijModule.module.component.content.sourceFolder | Where-Object {
             $_.url -eq 'file://$MODULE_DIR$/src/test/java' -and $_.isTestSource -eq 'true'
         }).Count -ne 1 -or
-        @($intellijModule.module.component.orderEntry | Where-Object { $_.name -eq 'JavaFX Hotspot' }).Count -ne 1 -or
+        @($intellijModule.module.component.orderEntry | Where-Object {
+            $_.type -eq 'module-library' -and $_.library.name -eq 'JavaFX Hotspot'
+        }).Count -ne 1 -or
+        @($intellijModule.module.component.orderEntry.library.CLASSES.root | Where-Object {
+            $_.url -like 'jar://*/javafx.controls.jar!/'
+        }).Count -ne 1 -or
         @($intellijModules.project.component.modules.module | Where-Object { $_.filepath -eq '$PROJECT_DIR$/project.iml' }).Count -ne 1 -or
         $netBeansProperties -notmatch 'javac\.classpath=.*file\.reference\.javafx\.controls\.jar' -or
         $netBeansProperties -notmatch 'javac\.classpath=.*file\.reference\.libs-example\.jar' -or
@@ -171,7 +176,9 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         @($repairedModules.project.component.modules.module | Where-Object {
             $_.filepath -eq '$PROJECT_DIR$/Downloads.iml'
         }).Count -ne 0 -or
-        @($repairedModule.module.component.orderEntry | Where-Object { $_.name -eq 'JavaFX Hotspot' }).Count -ne 1 -or
+        @($repairedModule.module.component.orderEntry | Where-Object {
+            $_.type -eq 'module-library' -and $_.library.name -eq 'JavaFX Hotspot'
+        }).Count -ne 1 -or
         @($repairedModule.module.component.content.sourceFolder | Where-Object {
             $_.url -eq 'file://$MODULE_DIR$/src/main/java'
         }).Count -ne 1) {
