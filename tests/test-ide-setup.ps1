@@ -146,6 +146,38 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         throw 'javafxsetup should reject malformed JSONC without overwriting the existing settings.'
     }
 
+    $staleIntelliJPath = Join-Path $tempRoot 'stale-intellij-project'
+    $staleIdeaPath = Join-Path $staleIntelliJPath '.idea'
+    New-Item -ItemType Directory -Path (Join-Path $staleIntelliJPath 'src\main\java'), $staleIdeaPath -Force | Out-Null
+    @'
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/Downloads.iml" filepath="$PROJECT_DIR$/Downloads.iml" />
+    </modules>
+  </component>
+</project>
+'@ | Set-Content -LiteralPath (Join-Path $staleIdeaPath 'modules.xml')
+    & $setupCommand.Source $staleIntelliJPath -IDE intellij
+    if ($LASTEXITCODE -ne 0) {
+        throw 'javafxsetup failed to recover IntelliJ configuration with a stale module reference.'
+    }
+    [xml] $repairedModules = Get-Content -LiteralPath (Join-Path $staleIdeaPath 'modules.xml') -Raw
+    [xml] $repairedModule = Get-Content -LiteralPath (Join-Path $staleIntelliJPath 'stale-intellij-project.iml') -Raw
+    if (@($repairedModules.project.component.modules.module | Where-Object {
+        $_.filepath -eq '$PROJECT_DIR$/stale-intellij-project.iml'
+    }).Count -ne 1 -or
+        @($repairedModules.project.component.modules.module | Where-Object {
+            $_.filepath -eq '$PROJECT_DIR$/Downloads.iml'
+        }).Count -ne 0 -or
+        @($repairedModule.module.component.orderEntry | Where-Object { $_.name -eq 'JavaFX Hotspot' }).Count -ne 1 -or
+        @($repairedModule.module.component.content.sourceFolder | Where-Object {
+            $_.url -eq 'file://$MODULE_DIR$/src/main/java'
+        }).Count -ne 1) {
+        throw 'javafxsetup did not replace the stale IntelliJ module reference with a configured module.'
+    }
+
     $explicitProjectPath = Join-Path $tempRoot 'explicit-project'
     New-Item -ItemType Directory -Path $explicitProjectPath -Force | Out-Null
     $explicitOutput = @(& $setupCommand.Source -ProjectDirectory $explicitProjectPath -IDE vscode 2>&1 |

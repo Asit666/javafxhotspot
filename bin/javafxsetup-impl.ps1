@@ -392,7 +392,52 @@ function Set-IntelliJClassPath {
     $library.DocumentElement.AppendChild($entry) | Out-Null
     Write-ProjectXml -Document $library -Path $libraryPath
 
-    $modules = @(Get-ChildItem -LiteralPath $Root -Filter '*.iml' -File)
+    $modulesPath = Join-Path $ideaDirectory 'modules.xml'
+    $modulesDocument = Read-ProjectXml -Path $modulesPath -RootName 'project'
+    $moduleManager = $modulesDocument.DocumentElement.SelectSingleNode("component[@name='ProjectModuleManager']")
+    if (-not $moduleManager) {
+        $moduleManager = $modulesDocument.CreateElement('component')
+        $moduleManager.SetAttribute('name', 'ProjectModuleManager')
+        $modulesDocument.DocumentElement.AppendChild($moduleManager) | Out-Null
+    }
+    $moduleList = $moduleManager.SelectSingleNode('modules')
+    if (-not $moduleList) {
+        $moduleList = $modulesDocument.CreateElement('modules')
+        $moduleManager.AppendChild($moduleList) | Out-Null
+    }
+
+    $modules = @()
+    $projectPrefix = $Root.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+    foreach ($moduleElement in @($moduleList.SelectNodes('module'))) {
+        $moduleRelativePath = $moduleElement.GetAttribute('filepath')
+        if (-not $moduleRelativePath.StartsWith('$PROJECT_DIR$/', [System.StringComparison]::OrdinalIgnoreCase)) {
+            $moduleUrl = $moduleElement.GetAttribute('fileurl')
+            if ($moduleUrl.StartsWith('file://$PROJECT_DIR$/', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $moduleRelativePath = $moduleUrl.Substring('file://$PROJECT_DIR$/'.Length)
+            } else {
+                continue
+            }
+        } else {
+            $moduleRelativePath = $moduleRelativePath.Substring('$PROJECT_DIR$/'.Length)
+        }
+
+        $candidatePath = [System.IO.Path]::GetFullPath((Join-Path $Root $moduleRelativePath.Replace('/', '\')))
+        if (-not $candidatePath.StartsWith($projectPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+        if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+            $modules += Get-Item -LiteralPath $candidatePath
+        } else {
+            $moduleList.RemoveChild($moduleElement) | Out-Null
+        }
+    }
+
+    foreach ($moduleFile in @(Get-ChildItem -LiteralPath $Root -Filter '*.iml' -File)) {
+        if (@($modules | Where-Object { $_.FullName -eq $moduleFile.FullName }).Count -eq 0) {
+            $modules += $moduleFile
+        }
+    }
+
     $createdModule = $false
     if ($modules.Count -eq 0) {
         $modulePath = Join-Path $Root ((Split-Path -Leaf $Root) + '.iml')
@@ -484,21 +529,8 @@ function Set-IntelliJClassPath {
         Write-ProjectXml -Document $module -Path $moduleFile.FullName
     }
 
-    $modulesPath = Join-Path $ideaDirectory 'modules.xml'
-    $modulesDocument = Read-ProjectXml -Path $modulesPath -RootName 'project'
-    $moduleManager = $modulesDocument.DocumentElement.SelectSingleNode("component[@name='ProjectModuleManager']")
-    if (-not $moduleManager) {
-        $moduleManager = $modulesDocument.CreateElement('component')
-        $moduleManager.SetAttribute('name', 'ProjectModuleManager')
-        $modulesDocument.DocumentElement.AppendChild($moduleManager) | Out-Null
-    }
-    $moduleList = $moduleManager.SelectSingleNode('modules')
-    if (-not $moduleList) {
-        $moduleList = $modulesDocument.CreateElement('modules')
-        $moduleManager.AppendChild($moduleList) | Out-Null
-    }
     foreach ($moduleFile in $modules) {
-        $relative = $moduleFile.Name
+        $relative = $moduleFile.FullName.Substring($projectPrefix.Length).Replace('\', '/')
         $url = 'file://$PROJECT_DIR$/' + $relative
         $exists = $false
         foreach ($moduleElement in @($moduleList.SelectNodes('module'))) {
