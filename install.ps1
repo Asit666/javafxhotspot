@@ -13,12 +13,15 @@ $release = Get-CompatibleJavaFxRelease -JdkMajor $jdk.Major
 $installRoot = Join-Path $env:LOCALAPPDATA 'JavaFXHotspot'
 $sdkRoot = Join-Path $installRoot ("sdk\javafx-" + $release.version + "-windows-x64")
 $sdkLib = Join-Path $sdkRoot 'lib'
+$requiredSdkJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
 $bin = Join-Path $installRoot 'bin'
 
 Write-Host "Detected JDK $($jdk.Major) ($($jdk.Architecture))."
 Write-Host "Selected JavaFX $($release.version) (minimum JDK $($release.minimumJdk))."
 
-if (-not (Test-Path -LiteralPath (Join-Path $sdkLib 'javafx.controls.jar') -PathType Leaf)) {
+if (@($requiredSdkJars | Where-Object {
+    -not (Test-Path -LiteralPath (Join-Path $sdkLib $_) -PathType Leaf)
+}).Count -gt 0) {
     $downloadBase = "https://download2.gluonhq.com/openjfx/$($release.version)"
     $archiveName = "openjfx-$($release.version)_windows-x64_bin-sdk.zip"
     $archiveUri = "$downloadBase/$archiveName"
@@ -62,7 +65,10 @@ if (-not (Test-Path -LiteralPath (Join-Path $sdkLib 'javafx.controls.jar') -Path
 
         Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
         $extractedLib = Join-Path $extractPath ("javafx-sdk-$($release.version)\lib")
-        if (-not (Test-Path -LiteralPath (Join-Path $extractedLib 'javafx.controls.jar') -PathType Leaf)) {
+        $missingJars = @($requiredSdkJars | Where-Object {
+            -not (Test-Path -LiteralPath (Join-Path $extractedLib $_) -PathType Leaf)
+        })
+        if ($missingJars.Count -gt 0) {
             throw 'The downloaded archive did not contain the expected JavaFX SDK.'
         }
 
@@ -103,6 +109,12 @@ if (-not ($pathEntries | Where-Object { $_.TrimEnd('\') -ieq $bin.TrimEnd('\') }
     $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) { $bin } else { $bin + ';' + $userPath.Trim(';') }
     [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
 }
+$persistedUserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (-not (@($persistedUserPath -split ';' | Where-Object {
+    $_.TrimEnd('\') -ieq $bin.TrimEnd('\')
+}).Count -gt 0)) {
+    throw "JavaFX Hotspot was installed, but '$bin' could not be added to your user PATH."
+}
 $processEntries = @($env:PATH -split ';' | Where-Object {
     $_ -and $_.TrimEnd('\') -ine $bin.TrimEnd('\')
 })
@@ -114,3 +126,5 @@ Write-Host 'Open a new terminal, then use:'
 Write-Host '  javafxsetup'
 Write-Host '  javafxc MyApp.java'
 Write-Host '  javafx MyApp'
+Write-Host 'If a command is not recognized in this same PowerShell window, refresh its PATH:'
+Write-Host '  $env:Path = @([Environment]::GetEnvironmentVariable("Path", "Machine"), [Environment]::GetEnvironmentVariable("Path", "User")) -join ";"'

@@ -71,6 +71,18 @@ It adds the command directory to your **user** PATH and configures
 `PATH_TO_FX`. Open a new terminal after installation so Windows and your IDEs
 pick up the changes. No administrator access, Maven, or changes to the JDK
 installation are needed.
+If you ran the installer from an existing PowerShell window and the command is
+still not recognized there, refresh that window's PATH:
+
+```powershell
+$env:Path = @(
+  [Environment]::GetEnvironmentVariable('Path', 'Machine'),
+  [Environment]::GetEnvironmentVariable('Path', 'User')
+) -join ';'
+```
+
+This is only needed for the already-open terminal; new terminals normally read
+the updated user PATH automatically.
 
 ## Use
 
@@ -89,8 +101,10 @@ javafxsetup
 By default, this configures JavaFX for the common Java IDEs:
 
 - **VS Code:** adds JavaFX JARs to `.vscode\settings.json`.
-- **Eclipse:** creates or updates `.project` and `.classpath`.
-- **IntelliJ IDEA:** creates or updates `.idea` library/module configuration.
+- **Eclipse:** creates or updates `.project` and `.classpath`, including
+  `src\main\resources` as a source root when present.
+- **IntelliJ IDEA:** creates or updates `.idea` library/module configuration,
+  including the `src\main\resources` resource root when present.
 - **Apache NetBeans:** updates JavaFX compile/runtime settings in an existing
   Ant project (`nbproject\project.properties`).
 - **Zed:** creates or updates Eclipse Java project metadata, which Zed's Java
@@ -99,6 +113,9 @@ By default, this configures JavaFX for the common Java IDEs:
   `.vscode\settings.json` Java library configuration.
 
 Existing unrelated project settings and library references are preserved.
+When updating VS Code settings that use JSONC comments or trailing commas,
+`javafxsetup` converts the file to standard JSON and warns that those comments
+and trailing commas are removed.
 The SDK paths are local to the current computer; run `javafxsetup` on each
 computer after installing JavaFX Hotspot. Run the command from a new terminal
 after installation; restart the IDE if it was open during installation.

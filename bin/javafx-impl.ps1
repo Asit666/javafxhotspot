@@ -66,6 +66,9 @@ if ($className.EndsWith('.java', [System.StringComparison]::OrdinalIgnoreCase)) 
         if ($_.Exception.Message -like 'Found multiple files named*') {
             throw
         }
+        if ($_.Exception.Message -notlike "Could not find '*.java' in the current folder or its project subfolders.") {
+            throw
+        }
     }
 }
 

@@ -33,12 +33,18 @@ try {
   "java.project.sourcePaths": ["src/main/java"],
   "java.project.referencedLibraries": [
     "C:/old/javafx-sdk-21.0.1/lib/*.jar",
-    "libs/example.jar"
+    "libs/example.jar",
   ],
-  "files.encoding": "utf8"
+  "example.url": "https://example.com/path/*literal*/",
+  "example.escaped": "quote: \" slash: \\ // /*",
+  "files.encoding": "utf8", // preserve this unrelated setting
 }
 '@ | Set-Content -LiteralPath $settingsPath
-    New-Item -ItemType Directory -Path (Join-Path $projectPath 'src\main\java'), (Join-Path $projectPath 'nbproject') -Force | Out-Null
+    New-Item -ItemType Directory -Path @(
+        (Join-Path $projectPath 'src\main\java'),
+        (Join-Path $projectPath 'src\main\resources'),
+        (Join-Path $projectPath 'nbproject')
+    ) -Force | Out-Null
     @'
 javac.classpath=${file.reference.libs-example.jar}
 run.classpath=${javac.classpath}
@@ -47,7 +53,7 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
     @'
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-  <classpathentry kind="src" path="src/main/java"/>
+  <classpathentry kind="src" path="src/test/java"/>
   <classpathentry kind="lib" path="libs/example.jar"/>
   <classpathentry kind="output" path="bin"/>
 </classpath>
@@ -78,6 +84,8 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         'file\.reference\.javafx\.controls\.jar').Count
     if ($settings.'java.project.sourcePaths'[0] -ne 'src/main/java' -or
         $settings.'files.encoding' -ne 'utf8' -or
+        $settings.'example.url' -ne 'https://example.com/path/*literal*/' -or
+        $settings.'example.escaped' -ne 'quote: " slash: \ // /*' -or
         $libraries -notcontains 'libs/example.jar' -or
         $libraries -notcontains $expectedFxPath -or
         @($libraries | Where-Object { $_ -match 'old/javafx-sdk' }).Count -gt 0 -or
@@ -85,10 +93,15 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         $eclipseJavaFxEntries.Count -ne 4 -or
         @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'libs/example.jar' }).Count -ne 1 -or
         @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'src/main/java' }).Count -ne 1 -or
+        @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'src/main/resources' }).Count -ne 1 -or
+        @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'src/test/java' }).Count -ne 1 -or
         -not $eclipseProject.projectDescription.SelectSingleNode('comment') -or
         -not $eclipseProject.projectDescription.SelectSingleNode('projects') -or
         @($eclipseProject.projectDescription.natures.nature | Where-Object { $_ -eq 'org.eclipse.jdt.core.javanature' }).Count -ne 1 -or
         @($intellijLibrary.component.library.CLASSES.root | Where-Object { $_.url -like 'jar://*/javafx.controls.jar!/' }).Count -ne 1 -or
+        @($intellijModule.module.component.content.sourceFolder | Where-Object {
+            $_.url -eq 'file://$MODULE_DIR$/src/main/resources' -and $_.type -eq 'java-resource'
+        }).Count -ne 1 -or
         @($intellijModule.module.component.orderEntry | Where-Object { $_.name -eq 'JavaFX Hotspot' }).Count -ne 1 -or
         @($intellijModules.project.component.modules.module | Where-Object { $_.filepath -eq '$PROJECT_DIR$/project.iml' }).Count -ne 1 -or
         $netBeansProperties -notmatch 'javac\.classpath=.*file\.reference\.javafx\.controls\.jar' -or
@@ -99,6 +112,21 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         $netBeansRuntimeArgs[0] -notmatch 'javafx\.controls,javafx\.fxml' -or
         $netBeansRuntimeArgs[0] -match 'old/javafx-sdk') {
         throw 'javafxsetup did not configure the expected IDE projects while preserving existing settings.'
+    }
+
+    $invalidProjectPath = Join-Path $tempRoot 'invalid-jsonc-project'
+    $invalidSettingsPath = Join-Path $invalidProjectPath '.vscode\settings.json'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $invalidSettingsPath) -Force | Out-Null
+    '{"files.encoding":"utf8"} /* unfinished comment' | Set-Content -LiteralPath $invalidSettingsPath
+    $invalidSettingsRejected = $false
+    try {
+        & $setupScript $invalidProjectPath -IDE vscode
+    } catch {
+        $invalidSettingsRejected = $_.Exception.Message -match 'Could not read .* as JSONC'
+    }
+    if (-not $invalidSettingsRejected -or
+        (Get-Content -LiteralPath $invalidSettingsPath -Raw) -notmatch 'unfinished comment') {
+        throw 'javafxsetup should reject malformed JSONC without overwriting the existing settings.'
     }
 
     & $setupCommand.Source $projectPath -IDE auto

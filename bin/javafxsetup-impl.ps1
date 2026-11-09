@@ -81,6 +81,119 @@ function Add-XmlTextIfMissing {
     $Parent.AppendChild($element) | Out-Null
 }
 
+function ConvertFrom-JsonWithComments {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $JsonText,
+
+        [ref] $HadJsoncSyntax = $null
+    )
+
+    $withoutComments = New-Object System.Text.StringBuilder
+    $inString = $false
+    $escaped = $false
+    $lineComment = $false
+    $blockComment = $false
+    for ($index = 0; $index -lt $JsonText.Length; $index++) {
+        $character = $JsonText[$index]
+        $nextCharacter = if ($index + 1 -lt $JsonText.Length) { $JsonText[$index + 1] } else { [char] 0 }
+
+        if ($lineComment) {
+            if ($character -eq "`r" -or $character -eq "`n") {
+                [void] $withoutComments.Append($character)
+                $lineComment = $false
+            } else {
+                [void] $withoutComments.Append(' ')
+            }
+            continue
+        }
+
+        if ($blockComment) {
+            if ($character -eq '*' -and $nextCharacter -eq '/') {
+                [void] $withoutComments.Append('  ')
+                $index++
+                $blockComment = $false
+            } elseif ($character -eq "`r" -or $character -eq "`n") {
+                [void] $withoutComments.Append($character)
+            } else {
+                [void] $withoutComments.Append(' ')
+            }
+            continue
+        }
+
+        if ($inString) {
+            [void] $withoutComments.Append($character)
+            if ($escaped) {
+                $escaped = $false
+            } elseif ($character -eq '\') {
+                $escaped = $true
+            } elseif ($character -eq '"') {
+                $inString = $false
+            }
+            continue
+        }
+
+        if ($character -eq '/' -and $nextCharacter -eq '/') {
+            if ($HadJsoncSyntax) { $HadJsoncSyntax.Value = $true }
+            [void] $withoutComments.Append('  ')
+            $index++
+            $lineComment = $true
+        } elseif ($character -eq '/' -and $nextCharacter -eq '*') {
+            if ($HadJsoncSyntax) { $HadJsoncSyntax.Value = $true }
+            [void] $withoutComments.Append('  ')
+            $index++
+            $blockComment = $true
+        } else {
+            [void] $withoutComments.Append($character)
+            if ($character -eq '"') {
+                $inString = $true
+            }
+        }
+    }
+
+    if ($blockComment) {
+        throw 'Unterminated JSONC block comment.'
+    }
+
+    $commentFree = $withoutComments.ToString()
+    $json = New-Object System.Text.StringBuilder
+    $inString = $false
+    $escaped = $false
+    for ($index = 0; $index -lt $commentFree.Length; $index++) {
+        $character = $commentFree[$index]
+        if ($inString) {
+            [void] $json.Append($character)
+            if ($escaped) {
+                $escaped = $false
+            } elseif ($character -eq '\') {
+                $escaped = $true
+            } elseif ($character -eq '"') {
+                $inString = $false
+            }
+            continue
+        }
+
+        if ($character -eq '"') {
+            $inString = $true
+            [void] $json.Append($character)
+        } elseif ($character -eq ',') {
+            $lookahead = $index + 1
+            while ($lookahead -lt $commentFree.Length -and [char]::IsWhiteSpace($commentFree[$lookahead])) {
+                $lookahead++
+            }
+            if ($lookahead -ge $commentFree.Length -or $commentFree[$lookahead] -notin @('}', ']')) {
+                [void] $json.Append($character)
+            } elseif ($HadJsoncSyntax) {
+                $HadJsoncSyntax.Value = $true
+            }
+        } else {
+            [void] $json.Append($character)
+        }
+    }
+
+    ConvertFrom-Json -InputObject $json.ToString()
+}
+
 function Set-VsCodeClassPath {
     param([string] $Root, [string] $Sdk)
 
@@ -88,10 +201,15 @@ function Set-VsCodeClassPath {
     $path = Join-Path $directory 'settings.json'
     $settings = [pscustomobject]@{}
     if (Test-Path -LiteralPath $path -PathType Leaf) {
+        $settingsText = Get-Content -LiteralPath $path -Raw
+        $hadJsoncSyntax = $false
         try {
-            $settings = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            $settings = ConvertFrom-JsonWithComments -JsonText $settingsText -HadJsoncSyntax ([ref]$hadJsoncSyntax)
         } catch {
-            throw "Could not read '$path' as JSON. Fix its JSON syntax before running javafxsetup."
+            throw "Could not read '$path' as JSONC. Check its JSON syntax before running javafxsetup. $($_.Exception.Message)"
+        }
+        if ($hadJsoncSyntax) {
+            Write-Warning "Converting '$path' from JSONC to standard JSON; comments and trailing commas will be removed."
         }
         if ($null -eq $settings -or $settings -is [array] -or $settings -is [string] -or $settings -is [ValueType]) {
             throw "Expected '$path' to contain a JSON object."
@@ -187,12 +305,29 @@ function Set-EclipseClassPath {
             $classpath.DocumentElement.RemoveChild($entry) | Out-Null
         }
     }
-    if (@($classpath.DocumentElement.SelectNodes("classpathentry[@kind='src']")).Count -eq 0 -and
-        (Test-Path -LiteralPath (Join-Path $Root 'src\main\java') -PathType Container)) {
-        $sourceEntry = $classpath.CreateElement('classpathentry')
-        $sourceEntry.SetAttribute('kind', 'src')
-        $sourceEntry.SetAttribute('path', 'src/main/java')
-        $classpath.DocumentElement.AppendChild($sourceEntry) | Out-Null
+    foreach ($sourceRoot in @(
+        @{ Path = 'src/main/java'; Directory = 'src\main\java' },
+        @{ Path = 'src/main/resources'; Directory = 'src\main\resources' }
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $Root $sourceRoot.Directory) -PathType Container)) {
+            continue
+        }
+
+        $rootCovered = $false
+        foreach ($sourceEntry in @($classpath.DocumentElement.SelectNodes("classpathentry[@kind='src']"))) {
+            $sourcePath = $sourceEntry.GetAttribute('path').Replace('\', '/').TrimEnd('/')
+            if ($sourcePath -eq $sourceRoot.Path -or
+                ($sourcePath -and $sourceRoot.Path.StartsWith($sourcePath + '/', [System.StringComparison]::OrdinalIgnoreCase))) {
+                $rootCovered = $true
+                break
+            }
+        }
+        if (-not $rootCovered) {
+            $sourceEntry = $classpath.CreateElement('classpathentry')
+            $sourceEntry.SetAttribute('kind', 'src')
+            $sourceEntry.SetAttribute('path', $sourceRoot.Path)
+            $classpath.DocumentElement.AppendChild($sourceEntry) | Out-Null
+        }
     }
     foreach ($jar in $Jars) {
         $entry = $classpath.CreateElement('classpathentry')
@@ -283,6 +418,29 @@ function Set-IntelliJClassPath {
             $manager = $module.CreateElement('component')
             $manager.SetAttribute('name', 'NewModuleRootManager')
             $module.DocumentElement.AppendChild($manager) | Out-Null
+        }
+        $resourceDirectory = Join-Path $Root 'src\main\resources'
+        if (Test-Path -LiteralPath $resourceDirectory -PathType Container) {
+            $content = $manager.SelectSingleNode('content')
+            if (-not $content) {
+                $content = $module.CreateElement('content')
+                $content.SetAttribute('url', 'file://$MODULE_DIR$')
+                $manager.AppendChild($content) | Out-Null
+            }
+            $resourceUrl = 'file://$MODULE_DIR$/src/main/resources'
+            $hasResourceRoot = $false
+            foreach ($sourceFolder in @($content.SelectNodes('sourceFolder'))) {
+                if ($sourceFolder.GetAttribute('url') -eq $resourceUrl) {
+                    $sourceFolder.SetAttribute('type', 'java-resource')
+                    $hasResourceRoot = $true
+                }
+            }
+            if (-not $hasResourceRoot) {
+                $sourceFolder = $module.CreateElement('sourceFolder')
+                $sourceFolder.SetAttribute('url', $resourceUrl)
+                $sourceFolder.SetAttribute('type', 'java-resource')
+                $content.AppendChild($sourceFolder) | Out-Null
+            }
         }
         $hasLibrary = $false
         foreach ($orderEntry in @($manager.SelectNodes("orderEntry[@type='library']"))) {
