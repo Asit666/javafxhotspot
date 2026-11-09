@@ -24,7 +24,9 @@ folder that contains `install.ps1`**. The path `.\install.ps1` is relative to
 PowerShell's current folder; for example, it will fail from `C:\Windows\System32`
 because the installer is not there.
 
-If Git is installed, you can clone the project and run the installer with:
+### If Git is installed
+
+Clone the project and run the installer:
 
 ```powershell
 git clone https://github.com/Asit666/javafxhotspot.git "$HOME\javafxhotspot"
@@ -32,13 +34,32 @@ Set-Location "$HOME\javafxhotspot"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-If you already downloaded or cloned the repository, change to its actual
-location first. For example:
+### If Git is not installed
+
+You do not need to install Git. Download and extract the ZIP using PowerShell:
 
 ```powershell
-Set-Location "$HOME\Downloads\javafxhotspot-main"
+$zip = Join-Path $HOME 'javafxhotspot.zip'
+$folder = Join-Path $HOME 'javafxhotspot-download'
+Invoke-WebRequest -UseBasicParsing `
+  -Uri 'https://github.com/Asit666/javafxhotspot/archive/refs/heads/main.zip' `
+  -OutFile $zip
+Expand-Archive -LiteralPath $zip -DestinationPath $folder -Force
+Set-Location (Join-Path $folder 'javafxhotspot-main')
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
+
+Or, in a browser, open the repository on GitHub, choose **Code → Download ZIP**,
+extract the ZIP, then open PowerShell in the extracted `javafxhotspot-main`
+folder (the folder containing `install.ps1`) and run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Do not run the installer from `C:\Windows\System32` or another folder that
+does not contain `install.ps1`. If PowerShell says the script does not exist,
+first use `Set-Location` to move to the extracted repository folder.
 
 The installer places the SDK and commands under:
 
