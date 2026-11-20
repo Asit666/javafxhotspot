@@ -136,6 +136,43 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         throw 'javafxsetup did not configure the expected IDE projects while preserving existing settings.'
     }
 
+    $netBeansEdgeProject = Join-Path $tempRoot 'netbeans-edge-project'
+    $netBeansEdgeDirectory = Join-Path $netBeansEdgeProject 'nbproject'
+    New-Item -ItemType Directory -Path $netBeansEdgeDirectory -Force | Out-Null
+    @'
+javac.classpath=\
+    ${file.reference.libs-example.jar}
+run.classpath=${javac.classpath}
+run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
+'@ | Set-Content -LiteralPath (Join-Path $netBeansEdgeDirectory 'project.properties')
+    & $setupScript $netBeansEdgeProject -IDE netbeans
+    if ($LASTEXITCODE -ne 0) {
+        throw 'javafxsetup failed on a NetBeans project with continued classpath properties and equals-form JavaFX VM options.'
+    }
+    $netBeansEdgeProperties = Get-Content -LiteralPath (Join-Path $netBeansEdgeDirectory 'project.properties') -Raw
+    if ($netBeansEdgeProperties -match '(?m)^javac\.classpath=\\\s*$' -or
+        $netBeansEdgeProperties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.libs-example\.jar\}' -or
+        $netBeansEdgeProperties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.javafx\.controls\.jar\}' -or
+        $netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml\r?$' -or
+        $netBeansEdgeProperties -match 'old/javafx-sdk') {
+        throw "NetBeans setup did not preserve continued classpath values and replace both JavaFX runtime options. Result: $netBeansEdgeProperties"
+    }
+
+    $netBeansEdgeProperties = $netBeansEdgeProperties -replace '(?m)^run\.jvmargs=.*\r?$', 'run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib" --add-modules=javafx.controls'
+    [System.IO.File]::WriteAllText(
+        (Join-Path $netBeansEdgeDirectory 'project.properties'),
+        $netBeansEdgeProperties,
+        (New-Object System.Text.UTF8Encoding($false)))
+    & $setupScript $netBeansEdgeProject -IDE netbeans
+    if ($LASTEXITCODE -ne 0) {
+        throw 'javafxsetup failed to replace equals-form NetBeans JavaFX VM options.'
+    }
+    $netBeansEdgeProperties = Get-Content -LiteralPath (Join-Path $netBeansEdgeDirectory 'project.properties') -Raw
+    if ($netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml\r?$' -or
+        $netBeansEdgeProperties -match 'old/javafx-sdk') {
+        throw "NetBeans setup did not replace equals-form JavaFX VM options. Result: $netBeansEdgeProperties"
+    }
+
     $invalidProjectPath = Join-Path $tempRoot 'invalid-jsonc-project'
     $invalidSettingsPath = Join-Path $invalidProjectPath '.vscode\settings.json'
     New-Item -ItemType Directory -Path (Split-Path -Parent $invalidSettingsPath) -Force | Out-Null
@@ -334,6 +371,15 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         -not (Test-Path -LiteralPath (Join-Path $zedAutoProject '.project') -PathType Leaf) -or
         -not (Test-Path -LiteralPath (Join-Path $zedAutoProject '.classpath') -PathType Leaf)) {
         throw 'javafxsetup auto-detection did not configure a Zed project.'
+    }
+
+    $bracketedAutoProject = Join-Path $tempRoot 'idea[auto]-project'
+    New-Item -ItemType Directory -Path (Join-Path $bracketedAutoProject '.idea') -Force | Out-Null
+    & $setupCommand.Source $bracketedAutoProject -IDE auto
+    if ($LASTEXITCODE -ne 0 -or
+        -not (Test-Path -LiteralPath (Join-Path $bracketedAutoProject '.idea\modules.xml') -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $bracketedAutoProject 'idea[auto]-project.iml') -PathType Leaf)) {
+        throw 'javafxsetup auto-detection did not handle a project path containing wildcard characters.'
     }
 } finally {
     $env:PATH_TO_FX = $previousPathToFx

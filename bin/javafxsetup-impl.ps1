@@ -589,12 +589,32 @@ function Set-NetBeansClassPath {
         for ($index = 0; $index -lt $lines.Count; $index++) {
             if ($lines[$index] -match ('^' + [regex]::Escape($key) + '=')) {
                 $current = $lines[$index].Substring($key.Length + 1)
+                $lastIndex = $index
+                while ($true) {
+                    $trailingSlashes = ([regex]::Match($lines[$lastIndex], '\\+$')).Length
+                    if ($trailingSlashes % 2 -eq 0) {
+                        break
+                    }
+                    if ($lastIndex + 1 -ge $lines.Count) {
+                        throw "NetBeans project property '$key' in '$propertiesPath' ends with an incomplete continuation."
+                    }
+
+                    $current = $current.Substring(0, $current.Length - 1) + $lines[$lastIndex + 1].TrimStart()
+                    $lastIndex++
+                }
                 foreach ($reference in $references) {
                     if ($current -notlike "*$reference*") {
                         $current = if ($current) { $current + ';' + $reference } else { $reference }
                     }
                 }
                 $lines[$index] = $key + '=' + $current
+                if ($lastIndex -gt $index) {
+                    if ($lastIndex + 1 -lt $lines.Count) {
+                        $lines = @($lines[0..$index] + $lines[($lastIndex + 1)..($lines.Count - 1)])
+                    } else {
+                        $lines = @($lines[0..$index])
+                    }
+                }
                 $found = $true
                 break
             }
@@ -610,16 +630,18 @@ function Set-NetBeansClassPath {
     for ($index = 0; $index -lt $lines.Count; $index++) {
         if ($lines[$index] -match '^run\.jvmargs=') {
             $current = $lines[$index].Substring('run.jvmargs='.Length)
-            if ($current -match '--module-path\s+(?:"[^"]+"|\S+)') {
-                $current = [regex]::Replace($current, '--module-path\s+(?:"[^"]+"|\S+)', [System.Text.RegularExpressions.MatchEvaluator] {
+            if ($current -match '--module-path(?:\s+|=)(?:"[^"]+"|\S+)') {
+                $current = [regex]::Replace($current, '--module-path(?:\s+|=)(?:"[^"]+"|\S+)', [System.Text.RegularExpressions.MatchEvaluator] {
                     param($match)
                     '--module-path "' + $runtimeSdkPath + '"'
                 })
             } else {
                 $current = ($current + ' ' + $runtimeArgs).Trim()
             }
-            if ($current -match '--add-modules\s+\S+') {
-                $current = [regex]::Replace($current, '--add-modules\s+\S+', '--add-modules ' + $Modules)
+            if ($current -match '--add-modules(?:\s+|=)\S+') {
+                $current = [regex]::Replace($current, '--add-modules(?:\s+|=)\S+', '--add-modules ' + $Modules)
+            } else {
+                $current = ($current + ' --add-modules ' + $Modules).Trim()
             }
             $lines[$index] = 'run.jvmargs=' + $current
             $foundRuntime = $true
@@ -768,9 +790,9 @@ if ($runVsCode) {
 }
 
 $runEclipse = $IDE -in @('all', 'eclipse', 'zed') -or
-    ($IDE -eq 'auto' -and ((Test-Path (Join-Path $projectPath '.project')) -or
-        (Test-Path (Join-Path $projectPath '.classpath')) -or
-        (Test-Path (Join-Path $projectPath '.zed') -PathType Container)))
+    ($IDE -eq 'auto' -and ((Test-Path -LiteralPath (Join-Path $projectPath '.project')) -or
+        (Test-Path -LiteralPath (Join-Path $projectPath '.classpath')) -or
+        (Test-Path -LiteralPath (Join-Path $projectPath '.zed') -PathType Container)))
 if ($runEclipse) {
     $name = if ($IDE -eq 'zed') { 'Zed (JDTLS project classpath)' } else { 'Eclipse' }
     Invoke-IdeSetup -Name $name -Action {
@@ -800,7 +822,7 @@ if ($runEclipse) {
 }
 
 $runIntelliJ = $IDE -in @('all', 'intellij') -or
-    ($IDE -eq 'auto' -and ((Test-Path (Join-Path $projectPath '.idea')) -or
+    ($IDE -eq 'auto' -and ((Test-Path -LiteralPath (Join-Path $projectPath '.idea')) -or
         @(Get-ChildItem -LiteralPath $projectPath -Filter '*.iml' -File).Count -gt 0))
 if ($runIntelliJ) {
     Invoke-IdeSetup -Name 'IntelliJ IDEA' -Action {
