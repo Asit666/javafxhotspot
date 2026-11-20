@@ -404,6 +404,12 @@ JavaFX SDK paths. It refuses to delete an install folder containing linked
 directories, to avoid removing data outside the install folder. It does not
 remove Java, machine-wide environment variables, project files, or IDE
 configuration files written inside application projects by `javafxsetup`.
+It also removes recognized JavaFX Hotspot ZIP downloads and extracted
+`javafxhotspot-main` folders from the current user's home directory when they
+match the expected repository layout. Git checkouts, linked folders, archives
+that cannot be verified, and unrelated files in download folders are preserved
+and reported; downloads outside the known names and home directory are not
+scanned or removed.
 Close and reopen terminals and IDEs after uninstalling. If `javafx` is still
 recognized in a new terminal, run `where.exe javafx` to find another copy on
 PATH. Each Windows user account must uninstall its own per-user installation.
