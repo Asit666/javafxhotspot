@@ -6,7 +6,7 @@ Prompt, Windows Terminal, VS Code, Zed, or another IDE terminal.
 ## Requirements
 
 - Windows 10/11, x64
-- A JDK with both `java` and `javac` available on `PATH`
+- JDK 11 or newer, with both `java` and `javac` available on `PATH`
 - An internet connection for the initial JavaFX SDK download
 
 The installer checks that `java` and `javac` use the same JDK version, checks

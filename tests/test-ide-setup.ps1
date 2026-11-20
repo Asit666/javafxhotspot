@@ -187,6 +187,32 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         throw 'javafxsetup should report the exact missing required JARs when the SDK is incomplete.'
     }
 
+    $quotedSdkPath = Join-Path $tempRoot "quote's-sdk\lib"
+    New-Item -ItemType Directory -Path $quotedSdkPath -Force | Out-Null
+    foreach ($jarName in @('javafx.base.jar', 'javafx.controls.jar', 'javafx.fxml.jar', 'javafx.graphics.jar')) {
+        New-Item -ItemType File -Path (Join-Path $quotedSdkPath $jarName) | Out-Null
+    }
+    $env:PATH_TO_FX = $quotedSdkPath
+    $quotedPathProject = Join-Path $tempRoot 'quoted-sdk-path-project'
+    New-Item -ItemType Directory -Path (Join-Path $quotedPathProject '.idea') -Force | Out-Null
+    try {
+        $quotedPathFailure = $null
+        try {
+            & $setupScript $quotedPathProject -IDE intellij
+        } catch {
+            $quotedPathFailure = $_.Exception.Message
+        }
+        $quotedPathModule = Join-Path $quotedPathProject 'quoted-sdk-path-project.iml'
+        if ($quotedPathFailure -or
+            -not (Test-Path -LiteralPath $quotedPathModule -PathType Leaf) -or
+            (Get-Content -LiteralPath $quotedPathModule -Raw) -notmatch [regex]::Escape(
+                ('jar://' + $quotedSdkPath.Replace('\', '/') + '/javafx.controls.jar!/'))) {
+            throw "IntelliJ setup did not verify an SDK path containing an apostrophe: $quotedPathFailure"
+        }
+    } finally {
+        $env:PATH_TO_FX = $sdkPath
+    }
+
     $invalidIntelliJPath = Join-Path $tempRoot 'invalid-intellij-project'
     $invalidIntelliJIdeaPath = Join-Path $invalidIntelliJPath '.idea'
     New-Item -ItemType Directory -Path $invalidIntelliJIdeaPath -Force | Out-Null

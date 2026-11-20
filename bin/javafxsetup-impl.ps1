@@ -831,7 +831,9 @@ if ($runIntelliJ) {
             }
             foreach ($jar in $jars) {
                 $expectedUrl = 'jar://' + $jar.FullName.Replace('\', '/') + '!/'
-                if (@($libraryEntry[0].SelectNodes("CLASSES/root[@url='$expectedUrl']")).Count -ne 1) {
+                if (@($libraryEntry[0].SelectNodes('CLASSES/root') | Where-Object {
+                    $_.GetAttribute('url') -eq $expectedUrl
+                }).Count -ne 1) {
                     throw "Module '$($moduleFile.Name)' does not reference JavaFX JAR '$expectedUrl'."
                 }
             }
