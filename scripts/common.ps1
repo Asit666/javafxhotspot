@@ -41,21 +41,38 @@ function Get-JavaToolInfo {
         throw "Could not find '$Name' on PATH. Install a JDK and ensure its bin folder is on PATH."
     }
 
-    $output = @(& $command.Source --version 2>&1 | ForEach-Object { "$_" })
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& $command.Source -version 2>&1 | ForEach-Object { "$_" })
+        $exitCode = $LASTEXITCODE
+    } catch {
+        throw "Could not query '$Name' at '$($command.Source)': $($_.Exception.Message)"
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
+    if ($exitCode -ne 0) {
         throw "Could not query '$Name' at '$($command.Source)'."
     }
 
-    $match = [regex]::Match(($output -join "`n"), '(?m)\b(?:javac\s+)?(?:openjdk\s+)?(\d+)(?:\.\d+)*')
+    $versionOutput = $output -join "`n"
+    $match = [regex]::Match(
+        $versionOutput,
+        '(?m)^\s*(?:java|openjdk)\s+version\s+"(?<version>[^"]+)"|^\s*javac\s+(?<version>[\w.+-]+)')
     if (-not $match.Success) {
-        throw "Could not determine the version of '$Name' at '$($command.Source)'. Output: $($output -join ' ')"
+        throw "Could not determine the version of '$Name' at '$($command.Source)'. Output: $versionOutput"
+    }
+    $versionText = $match.Groups['version'].Value
+    $majorMatch = [regex]::Match($versionText, '^(?:1\.)?(?<major>\d+)')
+    if (-not $majorMatch.Success) {
+        throw "Could not determine the version of '$Name' at '$($command.Source)'. Output: $versionOutput"
     }
 
     [pscustomobject]@{
-        Name       = $Name
-        Path       = $command.Source
-        Major      = [int] $match.Groups[1].Value
-        VersionText = $output -join ' '
+        Name        = $Name
+        Path        = $command.Source
+        Major       = [int] $majorMatch.Groups['major'].Value
+        VersionText = $versionText
     }
 }
 
