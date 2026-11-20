@@ -100,7 +100,7 @@ foreach ($folderName in $knownFolderNames) {
 
     $repositoryItem = Get-Item -LiteralPath $repositoryFolder -Force
     if (($repositoryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or
-        (Test-Path -LiteralPath (Join-Path $repositoryFolder '.git'))) {
+        (Test-Path -LiteralPath (Join-Path $repositoryFolder '.git') -ErrorAction SilentlyContinue)) {
         $preservedDownloads.Add("$repositoryFolder (linked folder or Git checkout)")
         continue
     }

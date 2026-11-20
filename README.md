@@ -455,4 +455,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-version-mapping
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-ide-setup.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-update.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-uninstall.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-commands.ps1
 ```

@@ -322,9 +322,11 @@ function Set-EclipseClassPath {
     $classpath = Read-ProjectXml -Path $classpathPath -RootName 'classpath'
     foreach ($entry in @($classpath.DocumentElement.SelectNodes('classpathentry'))) {
         $entryPath = $entry.GetAttribute('path')
+        $entryFileName = [System.IO.Path]::GetFileName($entryPath)
         if ($entry.GetAttribute('kind') -eq 'lib' -and
-            ($entryPath -match '(?i)javafx-sdk[^/\\]*[/\\]lib[/\\]' -or
-                [System.IO.Path]::GetFileName($entryPath) -match '(?i)^javafx.*\.jar$')) {
+            ($entryFileName -match '(?i)^javafx\.(base|graphics|controls|fxml|media|swing|web)\.jar$' -or
+                $entryFileName -match '(?i)^javafx-swt\.jar$' -or
+                $entryPath -match '(?i)(JavaFXHotspot[/\\]sdk[/\\]|javafx-sdk[^/\\]*[/\\]lib[/\\]|javafx-[^/\\]+-windows-x64[/\\]lib[/\\])')) {
             $classpath.DocumentElement.RemoveChild($entry) | Out-Null
         }
     }

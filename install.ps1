@@ -64,7 +64,10 @@ if ($invalidInstalledJars.Count -gt 0) {
         try {
             foreach ($entry in $zip.Entries) {
                 $entryPath = $entry.FullName.Replace('\', '/')
-                if ($entryPath.StartsWith('/') -or $entryPath -match '(^|/)\.\.(/|$)' -or $entryPath -match '^[A-Za-z]:') {
+                if ($entryPath.StartsWith('/') -or
+                    $entryPath -match '(^|/)\.\.(/|$)' -or
+                    $entryPath -match '(^|/)[A-Za-z]:($|/)' -or
+                    $entryPath.Contains([char] 0)) {
                     throw "Unsafe path in JavaFX SDK archive: $($entry.FullName)"
                 }
             }
@@ -140,7 +143,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc-impl.ps1') -Destina
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx-impl.ps1') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup-impl.ps1') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxupdate-impl.ps1') -Destination $bin -Force
-foreach ($obsoleteCommandScript in @('javafxc.ps1', 'javafx.ps1', 'javafxsetup.ps1')) {
+foreach ($obsoleteCommandScript in @('javafxc.ps1', 'javafx.ps1', 'javafxsetup.ps1', 'javafxupdate.ps1')) {
     $obsoletePath = Join-Path $bin $obsoleteCommandScript
     if (Test-Path -LiteralPath $obsoletePath -PathType Leaf) {
         Remove-Item -LiteralPath $obsoletePath -Force

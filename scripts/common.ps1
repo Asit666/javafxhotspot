@@ -221,38 +221,35 @@ function Get-CurrentJdk {
 function Get-InstalledJavaFxPath {
     $processCandidate = $env:PATH_TO_FX
     $requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
-    if (-not [string]::IsNullOrWhiteSpace($processCandidate)) {
-        $processCandidateComplete = Test-Path -LiteralPath $processCandidate -PathType Container
-        if ($processCandidateComplete) {
+    if (-not [string]::IsNullOrWhiteSpace($processCandidate) -and
+        (Test-Path -LiteralPath (Join-Path $processCandidate 'javafx.controls.jar') -PathType Leaf)) {
+        return $processCandidate
+    }
+
+    $candidates = @(
+        $processCandidate,
+        [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    foreach ($candidate in $candidates) {
+        $candidateComplete = Test-Path -LiteralPath $candidate -PathType Container
+        if ($candidateComplete) {
             foreach ($jarName in $requiredJars) {
-                $jar = Get-Item -LiteralPath (Join-Path $processCandidate $jarName) -ErrorAction SilentlyContinue
+                $jar = Get-Item -LiteralPath (Join-Path $candidate $jarName) -ErrorAction SilentlyContinue
                 if (-not $jar -or $jar.Length -le 0) {
-                    $processCandidateComplete = $false
+                    $candidateComplete = $false
                     break
                 }
             }
         }
-        if ($processCandidateComplete -or
-            (Test-Path -LiteralPath (Join-Path $processCandidate 'javafx.controls.jar') -PathType Leaf)) {
-            return $processCandidate
+        if ($candidateComplete) {
+            return $candidate
         }
     }
 
-    $userCandidate = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
-    if (-not [string]::IsNullOrWhiteSpace($userCandidate)) {
-        $userCandidateComplete = Test-Path -LiteralPath $userCandidate -PathType Container
-        if ($userCandidateComplete) {
-            foreach ($jarName in $requiredJars) {
-                $jar = Get-Item -LiteralPath (Join-Path $userCandidate $jarName) -ErrorAction SilentlyContinue
-                if (-not $jar -or $jar.Length -le 0) {
-                    $userCandidateComplete = $false
-                    break
-                }
-            }
-        }
-        if ($userCandidateComplete -or
-            (Test-Path -LiteralPath (Join-Path $userCandidate 'javafx.controls.jar') -PathType Leaf)) {
-            return $userCandidate
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath (Join-Path $candidate 'javafx.controls.jar') -PathType Leaf) {
+            return $candidate
         }
     }
 
@@ -484,8 +481,27 @@ function Copy-JavaResources {
         [System.StringComparer]::OrdinalIgnoreCase)
     foreach ($resourceDirectory in $resourceDirectories) {
         $root = (Get-Item -LiteralPath $resourceDirectory).FullName
+        $rootItem = Get-Item -LiteralPath $resourceDirectory -Force
+        if ($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
         $rootPrefix = $root.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
         foreach ($file in Get-ChildItem -LiteralPath $root -File -Recurse) {
+            $parent = $file.Directory
+            $hasLinkedParent = $false
+            while ($parent -and $parent.FullName.StartsWith($rootPrefix.TrimEnd('\', '/'), [System.StringComparison]::OrdinalIgnoreCase)) {
+                if ($parent.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    $hasLinkedParent = $true
+                    break
+                }
+                if ($parent.FullName.Equals($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    break
+                }
+                $parent = $parent.Parent
+            }
+            if ($hasLinkedParent -or ($file.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+                continue
+            }
             $relativePath = $file.FullName.Substring($rootPrefix.Length)
             if ($filesByRelativePath.ContainsKey($relativePath)) {
                 throw "Resource '$relativePath' exists in more than one resource folder. Keep one copy under src\main\resources or resources."

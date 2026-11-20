@@ -20,6 +20,8 @@ foreach ($additionalSource in $AdditionalSources) {
 
 $outputDirectory = Join-Path (Get-Location).Path 'build\classes'
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+Get-ChildItem -LiteralPath $outputDirectory -Force -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction Stop
 
 $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk

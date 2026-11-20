@@ -18,6 +18,12 @@ try {
 '@ | Set-Content -LiteralPath (Join-Path $sourceRoot 'install.ps1')
     Set-Content -LiteralPath (Join-Path $sourceRoot 'scripts\common.ps1') -Value '# test'
     Set-Content -LiteralPath (Join-Path $sourceRoot 'javafx-versions.json') -Value '{}'
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafx.cmd') -Value '@echo off'
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafx-impl.ps1') -Value '# test'
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafxc.cmd') -Value '@echo off'
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafxc-impl.ps1') -Value '# test'
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafxsetup.cmd') -Value '@echo off'
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafxsetup-impl.ps1') -Value '# test'
     Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafxupdate.cmd') -Value '@echo off'
     Set-Content -LiteralPath (Join-Path $sourceRoot 'bin\javafxupdate-impl.ps1') -Value '# test'
 

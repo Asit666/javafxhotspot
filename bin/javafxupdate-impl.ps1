@@ -16,6 +16,12 @@ $requiredFiles = @(
     'install.ps1',
     'scripts\common.ps1',
     'javafx-versions.json',
+    'bin\javafx.cmd',
+    'bin\javafx-impl.ps1',
+    'bin\javafxc.cmd',
+    'bin\javafxc-impl.ps1',
+    'bin\javafxsetup.cmd',
+    'bin\javafxsetup-impl.ps1',
     'bin\javafxupdate.cmd',
     'bin\javafxupdate-impl.ps1'
 )
@@ -32,7 +38,8 @@ try {
             $entryPath = $entry.FullName.Replace('\', '/')
             if ($entryPath.StartsWith('/') -or
                 $entryPath -match '(^|/)\.\.(/|$)' -or
-                $entryPath -match '^[A-Za-z]:') {
+                $entryPath -match '(^|/)[A-Za-z]:($|/)' -or
+                $entryPath.Contains([char] 0)) {
                 throw "Unsafe path in the downloaded JavaFX Hotspot archive: '$($entry.FullName)'."
             }
         }
