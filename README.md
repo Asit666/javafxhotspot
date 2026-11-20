@@ -1,13 +1,14 @@
 # JavaFX Hotspot
 
-Install JavaFX once, then use `javafxc` and `javafx` from PowerShell, Command
-Prompt, Windows Terminal, VS Code, Zed, or another IDE terminal.
+Install JavaFX once, then use `javafxc`, `javafx`, `javafxsetup`, and
+`javafxupdate` from PowerShell, Command Prompt, Windows Terminal, VS Code, Zed,
+or another IDE terminal.
 
 ## Requirements
 
 - Windows 10/11, x64
 - JDK 11 or newer, with both `java` and `javac` available on `PATH`
-- An internet connection for the initial JavaFX SDK download
+- An internet connection for the initial installation and `javafxupdate`
 
 The installer checks that `java` and `javac` use the same JDK version, checks
 the JDK architecture, selects a compatible JavaFX release, and verifies the
@@ -83,6 +84,26 @@ $env:Path = @(
 
 This is only needed for the already-open terminal; new terminals normally read
 the updated user PATH automatically.
+
+## Update
+
+Run this on each Windows laptop where JavaFX Hotspot is installed:
+
+```powershell
+javafxupdate
+```
+
+For an older installation that does not yet include `javafxupdate`, download
+the latest repository ZIP and run its `install.ps1` once. The updater command
+will be available for subsequent updates.
+
+The updater downloads the latest published `main` branch archive from this
+repository, checks the archive paths and required files, then runs the
+installer. It updates the installed commands and selects/installs the JavaFX
+SDK compatible with the active JDK. It does not update or replace Java, project
+files, or IDEs. An internet connection and a supported JDK are required.
+Alternatively, download the latest repository ZIP and run `install.ps1`
+manually.
 
 ## Use
 
@@ -338,35 +359,40 @@ matching JavaFX SDK.
 
 ## Uninstall
 
-Run:
+Download and extract the repository ZIP, then run its `uninstall.ps1`:
 
 ```powershell
 Set-Location "$HOME\javafxhotspot-download\javafxhotspot-main"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
-If you extracted the repository somewhere else, use `Set-Location` with that
-folder instead. The command must be run from the folder containing
-`uninstall.ps1`. To print the install directory in PowerShell, use:
-
-```powershell
-Join-Path $env:LOCALAPPDATA 'JavaFXHotspot'
-```
-
-The uninstaller removes JavaFX Hotspot's own install folder and its entries
-from the current user's PATH and `PATH_TO_FX`. It does not remove Java or
-project files.
+The uninstaller removes JavaFX Hotspot's own install folder and SDK, duplicate
+user PATH entries for its commands, and user `PATH_TO_FX` values pointing
+inside its managed SDK. It preserves unrelated user PATH entries and custom
+JavaFX SDK paths. It refuses to delete an install folder containing linked
+directories, to avoid removing data outside the install folder. It does not
+remove Java, machine-wide environment variables, project files, or IDE
+configuration files written inside application projects by `javafxsetup`.
+Close and reopen terminals and IDEs after uninstalling. If `javafx` is still
+recognized in a new terminal, run `where.exe javafx` to find another copy on
+PATH. Each Windows user account must uninstall its own per-user installation.
 
 ## Security
 
 The installer downloads a version-pinned SDK and its SHA-256 checksum from
-Gluon's HTTPS download host. Review `install.ps1` before running it. Do not pipe
-an unreviewed remote script directly into PowerShell.
+Gluon's HTTPS download host. `javafxupdate` downloads the repository archive
+over HTTPS and validates its paths and required files before running the
+installer; the repository archive is not separately code-signed. Review
+`install.ps1` and the updater before running them. Do not pipe an unreviewed
+remote script directly into PowerShell.
 
 ## Development checks
 
-Run the dependency-free compatibility-table test:
+Run the Windows PowerShell regression tests:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-version-mapping.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-ide-setup.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-update.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\test-uninstall.ps1
 ```

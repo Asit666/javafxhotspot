@@ -131,9 +131,11 @@ New-Item -ItemType Directory -Path (Join-Path $installRoot 'scripts') -Force | O
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup.cmd') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxupdate.cmd') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxc-impl.ps1') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafx-impl.ps1') -Destination $bin -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxsetup-impl.ps1') -Destination $bin -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'bin\javafxupdate-impl.ps1') -Destination $bin -Force
 foreach ($obsoleteCommandScript in @('javafxc.ps1', 'javafx.ps1', 'javafxsetup.ps1')) {
     $obsoletePath = Join-Path $bin $obsoleteCommandScript
     if (Test-Path -LiteralPath $obsoletePath -PathType Leaf) {
@@ -147,18 +149,18 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'javafx-versions.json') -Destina
 $env:PATH_TO_FX = $sdkLib
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $pathEntries = @($userPath -split ';' | Where-Object { $_ })
-if (-not ($pathEntries | Where-Object { $_.TrimEnd('\') -ieq $bin.TrimEnd('\') })) {
+if (-not ($pathEntries | Where-Object { Test-PathEntryEquals -PathEntry $_ -Directory $bin })) {
     $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) { $bin } else { $bin + ';' + $userPath.Trim(';') }
     [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
 }
 $persistedUserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (-not (@($persistedUserPath -split ';' | Where-Object {
-    $_.TrimEnd('\') -ieq $bin.TrimEnd('\')
+    Test-PathEntryEquals -PathEntry $_ -Directory $bin
 }).Count -gt 0)) {
     throw "JavaFX Hotspot was installed, but '$bin' could not be added to your user PATH."
 }
 $processEntries = @($env:PATH -split ';' | Where-Object {
-    $_ -and $_.TrimEnd('\') -ine $bin.TrimEnd('\')
+    $_ -and -not (Test-PathEntryEquals -PathEntry $_ -Directory $bin)
 })
 $env:PATH = $bin + ';' + ($processEntries -join ';')
 if (-not (Publish-EnvironmentChange)) {
@@ -171,5 +173,6 @@ Write-Host 'Open a new terminal, then use:'
 Write-Host '  javafxsetup'
 Write-Host '  javafxc MyApp.java'
 Write-Host '  javafx MyApp'
+Write-Host '  javafxupdate'
 Write-Host 'If a command is not recognized in this same PowerShell window, refresh its PATH:'
 Write-Host '  $env:Path = @([Environment]::GetEnvironmentVariable("Path", "Machine"), [Environment]::GetEnvironmentVariable("Path", "User")) -join ";"'

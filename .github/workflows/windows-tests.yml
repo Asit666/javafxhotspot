@@ -43,6 +43,9 @@ jobs:
       - name: Test isolated uninstall
         shell: pwsh
         run: ./tests/test-uninstall.ps1
+      - name: Test self-updater
+        shell: pwsh
+        run: ./tests/test-update.ps1
       - name: Install SDK and smoke-test commands
         shell: pwsh
         run: |
@@ -57,6 +60,9 @@ jobs:
           }
           if (-not $env:PATH_TO_FX.EndsWith("javafx-$($expected.version)-windows-x64\lib")) {
             throw "Installer selected an unexpected SDK: $env:PATH_TO_FX"
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'JavaFXHotspot\bin\javafxupdate.cmd') -PathType Leaf)) {
+            throw 'Installer did not install the javafxupdate command.'
           }
 
           $project = Join-Path $env:RUNNER_TEMP ("javafx-hotspot smoke " + [guid]::NewGuid().ToString('N'))

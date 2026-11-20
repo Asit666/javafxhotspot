@@ -28,6 +28,75 @@ public static class JavaFxHotspotEnvironment
     $status -ne [IntPtr]::Zero
 }
 
+function ConvertTo-NormalizedEnvironmentPath {
+    param(
+        [AllowEmptyString()]
+        [string] $Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ''
+    }
+
+    $expandedPath = [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"')).Replace('/', '\')
+    try {
+        [System.IO.Path]::GetFullPath($expandedPath).TrimEnd('\', '/')
+    } catch {
+        $expandedPath.TrimEnd('\', '/')
+    }
+}
+
+function Test-PathEntryEquals {
+    param(
+        [AllowEmptyString()]
+        [string] $PathEntry,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Directory
+    )
+
+    $normalizedEntry = ConvertTo-NormalizedEnvironmentPath -Path $PathEntry
+    $normalizedDirectory = ConvertTo-NormalizedEnvironmentPath -Path $Directory
+    $normalizedEntry -and $normalizedEntry.Equals(
+        $normalizedDirectory,
+        [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-PathWithinDirectory {
+    param(
+        [AllowEmptyString()]
+        [string] $Path,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Directory
+    )
+
+    $normalizedPath = ConvertTo-NormalizedEnvironmentPath -Path $Path
+    $normalizedDirectory = ConvertTo-NormalizedEnvironmentPath -Path $Directory
+    if (-not $normalizedPath -or -not $normalizedDirectory) {
+        return $false
+    }
+
+    $normalizedPath.Equals($normalizedDirectory, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $normalizedPath.StartsWith(
+            $normalizedDirectory + [System.IO.Path]::DirectorySeparatorChar,
+            [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Remove-PathEntriesForDirectory {
+    param(
+        [AllowEmptyString()]
+        [string] $PathValue,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Directory
+    )
+
+    @($PathValue -split ';' | Where-Object {
+        $_ -and -not (Test-PathEntryEquals -PathEntry $_ -Directory $Directory)
+    }) -join ';'
+}
+
 function Get-JavaToolInfo {
     param(
         [Parameter(Mandatory = $true)]
