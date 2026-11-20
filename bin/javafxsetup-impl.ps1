@@ -325,10 +325,24 @@ function Set-EclipseClassPath {
             $classpath.DocumentElement.RemoveChild($entry) | Out-Null
         }
     }
-    foreach ($sourceRoot in @(
+    $javaSourceRoots = @(
         @{ Path = 'src/main/java'; Directory = 'src\main\java' },
-        @{ Path = 'src/main/resources'; Directory = 'src\main\resources' }
-    )) {
+        @{ Path = 'src'; Directory = 'src' },
+        @{ Path = 'java'; Directory = 'java' }
+    )
+    $javaSourceRoot = $javaSourceRoots |
+        Where-Object { Test-Path -LiteralPath (Join-Path $Root $_.Directory) -PathType Container } |
+        Select-Object -First 1
+    $sourceRoots = @()
+    if ($javaSourceRoot) {
+        $sourceRoots += $javaSourceRoot
+    }
+    $resourceRoot = @{ Path = 'src/main/resources'; Directory = 'src\main\resources' }
+    if (Test-Path -LiteralPath (Join-Path $Root $resourceRoot.Directory) -PathType Container) {
+        $sourceRoots += $resourceRoot
+    }
+
+    foreach ($sourceRoot in $sourceRoots) {
         if (-not (Test-Path -LiteralPath (Join-Path $Root $sourceRoot.Directory) -PathType Container)) {
             continue
         }
@@ -347,6 +361,26 @@ function Set-EclipseClassPath {
             $sourceEntry.SetAttribute('kind', 'src')
             $sourceEntry.SetAttribute('path', $sourceRoot.Path)
             $classpath.DocumentElement.AppendChild($sourceEntry) | Out-Null
+        }
+    }
+    $hasJdkContainer = $false
+    foreach ($entry in @($classpath.DocumentElement.SelectNodes("classpathentry[@kind='con']"))) {
+        if ($entry.GetAttribute('path').StartsWith(
+            'org.eclipse.jdt.launching.JRE_CONTAINER',
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+            $hasJdkContainer = $true
+            break
+        }
+    }
+    if (-not $hasJdkContainer) {
+        $jdkEntry = $classpath.CreateElement('classpathentry')
+        $jdkEntry.SetAttribute('kind', 'con')
+        $jdkEntry.SetAttribute('path', 'org.eclipse.jdt.launching.JRE_CONTAINER')
+        $firstLibrary = $classpath.DocumentElement.SelectSingleNode("classpathentry[@kind='lib']")
+        if ($firstLibrary) {
+            $classpath.DocumentElement.InsertBefore($jdkEntry, $firstLibrary) | Out-Null
+        } else {
+            $classpath.DocumentElement.AppendChild($jdkEntry) | Out-Null
         }
     }
     foreach ($jar in $Jars) {
@@ -812,6 +846,14 @@ if ($runEclipse) {
         }
         if (-not $projectFile.DocumentElement.SelectSingleNode("natures/nature[.='org.eclipse.jdt.core.javanature']")) {
             throw "The Eclipse Java nature is missing from '$projectFilePath'."
+        }
+        $jdkContainers = @($classpath.DocumentElement.SelectNodes("classpathentry[@kind='con']") | Where-Object {
+            $_.GetAttribute('path').StartsWith(
+                'org.eclipse.jdt.launching.JRE_CONTAINER',
+                [System.StringComparison]::OrdinalIgnoreCase)
+        })
+        if ($jdkContainers.Count -ne 1) {
+            throw "Expected one Eclipse JDK container entry in '$classpathPath', found $($jdkContainers.Count)."
         }
     } -Configured $configured -Failures $failures
     if ($IDE -eq 'all' -or ($IDE -eq 'auto' -and

@@ -143,8 +143,9 @@ By default, this configures JavaFX for the common Java IDEs:
 
 - **VS Code:** adds JavaFX JARs to `.vscode\settings.json` and registers
   `src\main\java` as a source folder when present.
-- **Eclipse:** creates or updates `.project` and `.classpath`, including
-  `src\main\resources` as a source root when present.
+- **Eclipse:** creates or updates `.project` and `.classpath`, including a JDK
+  container, the detected Java source root (`src\main\java`, `src`, or `java`),
+  and `src\main\resources` when present.
 - **IntelliJ IDEA:** embeds the JavaFX JARs in the module dependency, repairs
   stale project-local module references, and includes `src\main\resources`
   when present.

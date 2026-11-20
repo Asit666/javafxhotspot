@@ -106,6 +106,9 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
         @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'src/main/java' }).Count -ne 1 -or
         @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'src/main/resources' }).Count -ne 1 -or
         @($eclipseClasspath.classpath.classpathentry | Where-Object { $_.path -eq 'src/test/java' }).Count -ne 1 -or
+        @($eclipseClasspath.classpath.classpathentry | Where-Object {
+            $_.kind -eq 'con' -and $_.path -eq 'org.eclipse.jdt.launching.JRE_CONTAINER'
+        }).Count -ne 1 -or
         -not $eclipseProject.projectDescription.SelectSingleNode('comment') -or
         -not $eclipseProject.projectDescription.SelectSingleNode('projects') -or
         @($eclipseProject.projectDescription.natures.nature | Where-Object { $_ -eq 'org.eclipse.jdt.core.javanature' }).Count -ne 1 -or
@@ -171,6 +174,22 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
     if ($netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml\r?$' -or
         $netBeansEdgeProperties -match 'old/javafx-sdk') {
         throw "NetBeans setup did not replace equals-form JavaFX VM options. Result: $netBeansEdgeProperties"
+    }
+
+    $simpleSourceProject = Join-Path $tempRoot 'simple-source-eclipse-project'
+    New-Item -ItemType Directory -Path (Join-Path $simpleSourceProject 'src') -Force | Out-Null
+    & $setupCommand.Source $simpleSourceProject -IDE eclipse
+    if ($LASTEXITCODE -ne 0) {
+        throw 'javafxsetup failed for an Eclipse project with a plain src source folder.'
+    }
+    [xml] $simpleSourceClasspath = Get-Content -LiteralPath (Join-Path $simpleSourceProject '.classpath') -Raw
+    if (@($simpleSourceClasspath.classpath.classpathentry | Where-Object {
+        $_.kind -eq 'src' -and $_.path -eq 'src'
+    }).Count -ne 1 -or
+        @($simpleSourceClasspath.classpath.classpathentry | Where-Object {
+            $_.kind -eq 'con' -and $_.path -eq 'org.eclipse.jdt.launching.JRE_CONTAINER'
+        }).Count -ne 1) {
+        throw 'Eclipse setup did not add both the plain src source folder and JDK container.'
     }
 
     $invalidProjectPath = Join-Path $tempRoot 'invalid-jsonc-project'
