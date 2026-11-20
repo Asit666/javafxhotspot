@@ -121,7 +121,11 @@ if ($invalidInstalledJars.Count -gt 0) {
         }
     } finally {
         if (Test-Path -LiteralPath $tempRoot) {
-            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+            try {
+                Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction Stop
+            } catch {
+                Write-Warning "JavaFX Hotspot could not remove its temporary download folder '$tempRoot': $($_.Exception.Message)"
+            }
         }
     }
 }

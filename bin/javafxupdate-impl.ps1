@@ -60,6 +60,10 @@ try {
     throw "JavaFX Hotspot update failed: $($_.Exception.Message)"
 } finally {
     if (Test-Path -LiteralPath $temporaryRoot -PathType Container) {
-        Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+        try {
+            Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Could not remove the temporary JavaFX Hotspot update folder '$temporaryRoot': $($_.Exception.Message)"
+        }
     }
 }

@@ -158,6 +158,17 @@ function Get-CompatibleJavaFxRelease {
     }
 
     $table = Get-Content -LiteralPath $VersionFile -Raw | ConvertFrom-Json
+    if ($null -eq $table -or $table.releases -isnot [array]) {
+        throw "Invalid JavaFX compatibility table: $VersionFile"
+    }
+    foreach ($releaseEntry in $table.releases) {
+        $minimumJdk = 0
+        $minimumJdkValid = [int]::TryParse([string] $releaseEntry.minimumJdk, [ref] $minimumJdk)
+        if (-not ($releaseEntry.version -match '^\d+\.\d+\.\d+$') -or
+            -not $minimumJdkValid -or $minimumJdk -lt 1) {
+            throw "Invalid JavaFX compatibility table entry in: $VersionFile"
+        }
+    }
     $release = $table.releases |
         Where-Object { [int] $_.minimumJdk -le $JdkMajor } |
         Sort-Object -Property @{ Expression = { [version] $_.version }; Descending = $true } |
@@ -208,14 +219,40 @@ function Get-CurrentJdk {
 }
 
 function Get-InstalledJavaFxPath {
-    $candidates = @(
-        $env:PATH_TO_FX,
-        [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    $processCandidate = $env:PATH_TO_FX
+    $requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
+    if (-not [string]::IsNullOrWhiteSpace($processCandidate)) {
+        $processCandidateComplete = Test-Path -LiteralPath $processCandidate -PathType Container
+        if ($processCandidateComplete) {
+            foreach ($jarName in $requiredJars) {
+                $jar = Get-Item -LiteralPath (Join-Path $processCandidate $jarName) -ErrorAction SilentlyContinue
+                if (-not $jar -or $jar.Length -le 0) {
+                    $processCandidateComplete = $false
+                    break
+                }
+            }
+        }
+        if ($processCandidateComplete -or
+            (Test-Path -LiteralPath (Join-Path $processCandidate 'javafx.controls.jar') -PathType Leaf)) {
+            return $processCandidate
+        }
+    }
 
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath (Join-Path $candidate 'javafx.controls.jar') -PathType Leaf) {
-            return $candidate
+    $userCandidate = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+    if (-not [string]::IsNullOrWhiteSpace($userCandidate)) {
+        $userCandidateComplete = Test-Path -LiteralPath $userCandidate -PathType Container
+        if ($userCandidateComplete) {
+            foreach ($jarName in $requiredJars) {
+                $jar = Get-Item -LiteralPath (Join-Path $userCandidate $jarName) -ErrorAction SilentlyContinue
+                if (-not $jar -or $jar.Length -le 0) {
+                    $userCandidateComplete = $false
+                    break
+                }
+            }
+        }
+        if ($userCandidateComplete -or
+            (Test-Path -LiteralPath (Join-Path $userCandidate 'javafx.controls.jar') -PathType Leaf)) {
+            return $userCandidate
         }
     }
 
@@ -340,8 +377,11 @@ function Resolve-JavaSource {
         $fileName += '.java'
     }
 
-    $matches = @(Get-ChildItem -LiteralPath (Get-Location).Path -Filter $fileName -File -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '[\\/](\.git|build|target|node_modules)[\\/]' })
+    $matches = @(Get-ChildItem -LiteralPath (Get-Location).Path -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.FullName -notmatch '[\\/](\.git|build|target|node_modules)[\\/]'
+        })
 
     if ($matches.Count -eq 0) {
         throw "Could not find '$fileName' in the current folder or its project subfolders."
@@ -365,6 +405,60 @@ function Get-JavaPackageName {
     )
 
     $text = Get-Content -LiteralPath $SourcePath -Raw
+    $cleanText = New-Object System.Text.StringBuilder
+    $inString = $false
+    $inChar = $false
+    $inLineComment = $false
+    $inBlockComment = $false
+    $escaped = $false
+    for ($index = 0; $index -lt $text.Length; $index++) {
+        $character = $text[$index]
+        $nextCharacter = if ($index + 1 -lt $text.Length) { $text[$index + 1] } else { [char] 0 }
+        if ($inLineComment) {
+            if ($character -eq "`r" -or $character -eq "`n") {
+                [void] $cleanText.Append($character)
+                $inLineComment = $false
+            }
+            continue
+        }
+        if ($inBlockComment) {
+            if ($character -eq '*' -and $nextCharacter -eq '/') {
+                $inBlockComment = $false
+                $index++
+            } elseif ($character -eq "`r" -or $character -eq "`n") {
+                [void] $cleanText.Append($character)
+            }
+            continue
+        }
+        if ($inString -or $inChar) {
+            if ($escaped) {
+                $escaped = $false
+            } elseif ($character -eq '\') {
+                $escaped = $true
+            } elseif (($inString -and $character -eq '"') -or ($inChar -and $character -eq "'")) {
+                $inString = $false
+                $inChar = $false
+            }
+            [void] $cleanText.Append(' ')
+            continue
+        }
+        if ($character -eq '/' -and $nextCharacter -eq '/') {
+            $inLineComment = $true
+            $index++
+        } elseif ($character -eq '/' -and $nextCharacter -eq '*') {
+            $inBlockComment = $true
+            $index++
+        } elseif ($character -eq '"') {
+            $inString = $true
+            [void] $cleanText.Append(' ')
+        } elseif ($character -eq "'") {
+            $inChar = $true
+            [void] $cleanText.Append(' ')
+        } else {
+            [void] $cleanText.Append($character)
+        }
+    }
+    $text = $cleanText.ToString()
     $match = [regex]::Match($text, '(?m)^\s*package\s+([\w.]+)\s*;')
     if ($match.Success) {
         return $match.Groups[1].Value

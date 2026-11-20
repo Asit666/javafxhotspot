@@ -242,7 +242,10 @@ function Set-VsCodeClassPath {
         $libraries = @($property.Value)
     }
     $libraries = @($libraries | Where-Object {
-        $_ -and $_ -notmatch '(?i)javafx-sdk-[^/\\]+[/\\]lib[/\\].*\.jar'
+        $_ -and (
+            $_ -isnot [string] -or
+            $_ -notmatch '(?i)(javafx-sdk-[^/\\]+|javafx-[^/\\]+-windows-x64)[/\\]lib[/\\].*\.jar'
+        )
     })
     $libraryPath = ($Sdk.TrimEnd('\', '/') + '/*.jar').Replace('\', '/')
     if ($libraries -notcontains $libraryPath) {
@@ -599,6 +602,9 @@ function Set-NetBeansClassPath {
     }
 
     $lines = @(Get-Content -LiteralPath $propertiesPath)
+    $lines = @($lines | Where-Object {
+        $_ -notmatch '^file\.reference\.javafx.*\.jar='
+    })
     $references = @()
     foreach ($jar in $Jars) {
         $propertyName = 'file.reference.' + $jar.Name
@@ -636,6 +642,15 @@ function Set-NetBeansClassPath {
                     $current = $current.Substring(0, $current.Length - 1) + $lines[$lastIndex + 1].TrimStart()
                     $lastIndex++
                 }
+                $current = [regex]::Replace(
+                    $current,
+                    '(?:^|;)\s*\$\{file\.reference\.javafx[^;}]*\.jar\}\s*(?=;|$)',
+                    '')
+                $current = [regex]::Replace(
+                    $current,
+                    '(?i)(?:^|;)\s*[^;]*javafx(?:-sdk[^;]*|-[^;]*-windows-x64[^;]*)[/\\]lib[/\\][^;]*\.jar\s*(?=;|$)',
+                    '')
+                $current = $current.Trim(';').Trim()
                 foreach ($reference in $references) {
                     if ($current -notlike "*$reference*") {
                         $current = if ($current) { $current + ';' + $reference } else { $reference }
@@ -856,8 +871,10 @@ if ($runEclipse) {
             throw "Expected one Eclipse JDK container entry in '$classpathPath', found $($jdkContainers.Count)."
         }
     } -Configured $configured -Failures $failures
-    if ($IDE -eq 'all' -or ($IDE -eq 'auto' -and
-        (Test-Path -LiteralPath (Join-Path $projectPath '.zed') -PathType Container))) {
+    if (($IDE -eq 'all' -and $configured -contains 'Eclipse') -or
+        ($IDE -eq 'auto' -and
+            (Test-Path -LiteralPath (Join-Path $projectPath '.zed') -PathType Container) -and
+            $configured -contains 'Eclipse')) {
         $configured.Add('Zed (JDTLS project classpath)')
         Write-Host '[PASS] Zed (JDTLS project classpath): uses the verified Eclipse .project and .classpath files.' -ForegroundColor Green
     }
