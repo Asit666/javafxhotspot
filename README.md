@@ -20,10 +20,8 @@ from `download2.gluonhq.com`.
 
 ## Install
 
-First download or clone this repository. Then run the installer **from the
-folder that contains `install.ps1`**. The path `.\install.ps1` is relative to
-PowerShell's current folder; for example, it will fail from `C:\Windows\System32`
-because the installer is not there.
+First download or clone this repository. Run the installer using the full path
+to `install.ps1`; no particular PowerShell working directory is required.
 
 ### If Git is installed
 
@@ -31,8 +29,9 @@ Clone the project and run the installer:
 
 ```powershell
 git clone https://github.com/Asit666/javafxhotspot.git "$HOME\javafxhotspot"
-Set-Location "$HOME\javafxhotspot"
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+$repo = Join-Path $HOME 'javafxhotspot'
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'JavaFX Hotspot installation failed.' }
 ```
 
 ### If Git is not installed
@@ -40,27 +39,35 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 You do not need to install Git. Download and extract the ZIP using PowerShell:
 
 ```powershell
+$ErrorActionPreference = 'Stop'
 $zip = Join-Path $HOME 'javafxhotspot.zip'
 $folder = Join-Path $HOME 'javafxhotspot-download'
 Invoke-WebRequest -UseBasicParsing `
   -Uri 'https://github.com/Asit666/javafxhotspot/archive/refs/heads/main.zip' `
   -OutFile $zip
 Expand-Archive -LiteralPath $zip -DestinationPath $folder -Force
-Set-Location (Join-Path $folder 'javafxhotspot-main')
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+$repo = Join-Path $folder 'javafxhotspot-main'
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'JavaFX Hotspot installation failed.' }
 ```
 
+For a clean bootstrap or when a previous extraction may be stale, use a new
+folder name (for example, `javafxhotspot-bootstrap`) for both `$zip` and
+`$folder`. Keep using the exact folder stored in `$repo` in later commands;
+downloads and extractions do not create the older `javafxhotspot-download`
+folder automatically.
+
 Or, in a browser, open the repository on GitHub, choose **Code → Download ZIP**,
-extract the ZIP, then open PowerShell in the extracted `javafxhotspot-main`
+and extract it. Then open PowerShell in the extracted `javafxhotspot-main`
 folder (the folder containing `install.ps1`) and run:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Do not run the installer from `C:\Windows\System32` or another folder that
-does not contain `install.ps1`. If PowerShell says the script does not exist,
-first use `Set-Location` to move to the extracted repository folder.
+If you use the relative command `.\install.ps1`, first use `Set-Location` to
+move to the extracted repository folder. The full-path commands above also work
+from `C:\Windows\System32`.
 
 The installer places the SDK and commands under:
 
@@ -93,9 +100,25 @@ Run this on each Windows laptop where JavaFX Hotspot is installed:
 javafxupdate
 ```
 
-For an older installation that does not yet include `javafxupdate`, download
-the latest repository ZIP and run its `install.ps1` once. The updater command
-will be available for subsequent updates.
+`javafxupdate` is installed by the current installer. If PowerShell says the
+command is not recognized, bootstrap it once from the latest ZIP, using one
+folder variable consistently:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$zip = Join-Path $HOME 'javafxhotspot-bootstrap.zip'
+$folder = Join-Path $HOME 'javafxhotspot-bootstrap'
+Invoke-WebRequest -UseBasicParsing `
+  -Uri 'https://github.com/Asit666/javafxhotspot/archive/refs/heads/main.zip' `
+  -OutFile $zip
+Expand-Archive -LiteralPath $zip -DestinationPath $folder -Force
+$repo = Join-Path $folder 'javafxhotspot-main'
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'JavaFX Hotspot bootstrap installation failed.' }
+```
+
+Open a new PowerShell window (or refresh the current window's PATH using the
+command above), then verify with `Get-Command javafxupdate` before running it.
 
 The updater downloads the latest published `main` branch archive from this
 repository, checks the archive paths and required files, then runs the
@@ -360,12 +383,19 @@ matching JavaFX SDK.
 
 ## Uninstall
 
-Download and extract the repository ZIP, then run its `uninstall.ps1`:
+The uninstaller is a repository script, not a `javafxuninstall` command.
+Download and extract the repository ZIP if it is not already available. In the
+same PowerShell window where you bootstrapped or installed from a ZIP, run it
+using that extraction's `$repo` folder variable:
 
 ```powershell
-Set-Location "$HOME\javafxhotspot-download\javafxhotspot-main"
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'uninstall.ps1')
 ```
+
+For example, if you used a different extraction directory, set `$repo` to that
+directory's `javafxhotspot-main` folder first. Do not assume it is
+`$HOME\javafxhotspot-download\javafxhotspot-main`; use the actual `$folder`
+value you used when downloading.
 
 The uninstaller removes JavaFX Hotspot's own install folder and SDK, duplicate
 user PATH entries for its commands, and user `PATH_TO_FX` values pointing
