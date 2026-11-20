@@ -10,10 +10,8 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\scripts\common.ps1')
 
-$sdk = Get-InstalledJavaFxPath
-if (-not $sdk) {
-    throw 'JavaFX SDK is not configured. Run install.ps1 from the JavaFX Hotspot repository.'
-}
+$sdk = Get-RequiredJavaFxPath
+$null = Get-JavaFxSdkJars -SdkPath $sdk
 
 $sources = @((Resolve-JavaSource -Source $Source))
 foreach ($additionalSource in $AdditionalSources) {
@@ -26,7 +24,7 @@ New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
-$modules = Get-JavaFxModules
+$modules = Get-JavaFxModules -SdkPath $sdk
 $arguments = @('--module-path', $sdk, '--add-modules', $modules, '-d', $outputDirectory) + $sources
 & $jdk.Javac.Path @arguments
 if ($LASTEXITCODE -ne 0) {

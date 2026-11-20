@@ -74,11 +74,54 @@ if ((Get-JavaFxModules) -ne 'javafx.controls,javafx.fxml') {
     throw 'The default JavaFX modules should include controls and FXML only.'
 }
 $previousModules = $env:JAVAFX_MODULES
+$sdkTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('javafxhotspot sdk validation-' + [guid]::NewGuid().ToString('N'))
+$sdkTestLib = Join-Path $sdkTestRoot 'lib'
 try {
+    New-Item -ItemType Directory -Path $sdkTestLib -Force | Out-Null
+    foreach ($jarName in @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')) {
+        Set-Content -LiteralPath (Join-Path $sdkTestLib $jarName) -Value 'test'
+    }
+    if (@(Get-JavaFxSdkJars -SdkPath $sdkTestLib).Count -ne 4) {
+        throw 'JavaFX SDK validation did not return all installed JARs.'
+    }
+
     $env:JAVAFX_MODULES = 'javafx.controls, javafx.media'
     if ((Get-JavaFxModules) -ne 'javafx.controls,javafx.media') {
         throw 'Custom JavaFX module selection was not preserved.'
     }
+    $env:JAVAFX_MODULES = 'javafx.controls, javafx.controls'
+    if ((Get-JavaFxModules -SdkPath $sdkTestLib) -ne 'javafx.controls') {
+        throw 'Duplicate JavaFX modules should be removed and requested modules validated against the SDK.'
+    }
+    $env:JAVAFX_MODULES = 'javafx.controls,javafx.web'
+    try {
+        Get-JavaFxModules -SdkPath $sdkTestLib | Out-Null
+        throw 'A JavaFX module missing from the installed SDK should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike "JavaFX module 'javafx.web' was requested*") {
+            throw
+        }
+    }
+    $env:JAVAFX_MODULES = 'javafx.Controls'
+    try {
+        Get-JavaFxModules | Out-Null
+        throw 'Non-canonical JavaFX module names should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike 'Invalid JAVAFX_MODULES value*') {
+            throw
+        }
+    }
+
+    [System.IO.File]::WriteAllText((Join-Path $sdkTestLib 'javafx.fxml.jar'), '')
+    try {
+        Get-JavaFxSdkJars -SdkPath $sdkTestLib | Out-Null
+        throw 'An empty required JavaFX JAR should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike '*incomplete or damaged*javafx.fxml.jar*') {
+            throw
+        }
+    }
+
     $env:JAVAFX_MODULES = 'javafx.controls,javafx.web;Remove-Item'
     try {
         Get-JavaFxModules | Out-Null
@@ -90,6 +133,9 @@ try {
     }
 } finally {
     $env:JAVAFX_MODULES = $previousModules
+    if (Test-Path -LiteralPath $sdkTestRoot) {
+        Remove-Item -LiteralPath $sdkTestRoot -Recurse -Force
+    }
 }
 
 Assert-JavaFxMatchesJdk -JdkMajor 25 -SdkPath 'C:\JavaFX\javafx-sdk-25.0.5\lib'

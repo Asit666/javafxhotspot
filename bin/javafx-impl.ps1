@@ -7,10 +7,8 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\scripts\common.ps1')
 
-$sdk = Get-InstalledJavaFxPath
-if (-not $sdk) {
-    throw 'JavaFX SDK is not configured. Run install.ps1 from the JavaFX Hotspot repository.'
-}
+$sdk = Get-RequiredJavaFxPath
+$null = Get-JavaFxSdkJars -SdkPath $sdk
 
 if (-not $CommandArguments -or $CommandArguments.Count -eq 0) {
     throw 'Usage: javafx [-Xmx<size>] ClassName [application arguments]'
@@ -74,7 +72,7 @@ if (-not (Test-Path -LiteralPath $classDirectory -PathType Container)) {
 $jdk = Get-CurrentJdk
 Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
-$modules = Get-JavaFxModules
+$modules = Get-JavaFxModules -SdkPath $sdk
 $nativeAccessOptions = if ($jdk.Major -ge 24) {
     @('--enable-native-access=javafx.graphics')
 } else {

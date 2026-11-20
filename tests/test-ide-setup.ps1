@@ -13,7 +13,7 @@ $previousPath = $env:PATH
 try {
     New-Item -ItemType Directory -Path $sdkPath, (Join-Path $projectPath '.vscode'), $testBin, $testScripts -Force | Out-Null
     foreach ($jarName in @('javafx.base.jar', 'javafx.controls.jar', 'javafx.fxml.jar', 'javafx.graphics.jar')) {
-        New-Item -ItemType File -Path (Join-Path $sdkPath $jarName) | Out-Null
+        Set-Content -LiteralPath (Join-Path $sdkPath $jarName) -Value 'test'
     }
     $env:PATH_TO_FX = $sdkPath
 
@@ -190,7 +190,7 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
     $quotedSdkPath = Join-Path $tempRoot "quote's-sdk\lib"
     New-Item -ItemType Directory -Path $quotedSdkPath -Force | Out-Null
     foreach ($jarName in @('javafx.base.jar', 'javafx.controls.jar', 'javafx.fxml.jar', 'javafx.graphics.jar')) {
-        New-Item -ItemType File -Path (Join-Path $quotedSdkPath $jarName) | Out-Null
+        Set-Content -LiteralPath (Join-Path $quotedSdkPath $jarName) -Value 'test'
     }
     $env:PATH_TO_FX = $quotedSdkPath
     $quotedPathProject = Join-Path $tempRoot 'quoted-sdk-path-project'

@@ -313,6 +313,10 @@ javafxc MyApp.java
 javafx MyApp
 ```
 
+Requested modules are checked against the installed SDK before invoking Java;
+typos or modules missing from that SDK are reported directly. Required JavaFX
+JARs are also checked for missing or empty files before compilation.
+
 Use module names such as `javafx.media`, `javafx.web`, or `javafx.swing` only
 when the app needs them. This avoids resolving unused JavaFX modules by
 default; it reduces unnecessary module resolution, but does not guarantee a

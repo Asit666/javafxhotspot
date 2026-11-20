@@ -718,18 +718,19 @@ if (-not $hasSourceDirectory -and -not $hasProjectFile -and -not $hasJavaSource)
     Write-Warning "No Java source folder or project file was found in '$projectPath'. javafxsetup configures this folder only; run it from your application's project root."
 }
 
-$requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
-$missingJars = @($requiredJars | Where-Object {
-    -not (Test-Path -LiteralPath (Join-Path $sdk $_) -PathType Leaf)
-})
-if ($missingJars.Count -gt 0) {
-    $message = "The JavaFX SDK folder '$sdk' is incomplete. Missing required JAR(s): $($missingJars -join ', '). Reinstall JavaFX Hotspot to repair the SDK."
+$sdkFailure = $null
+try {
+    $jars = @(Get-JavaFxSdkJars -SdkPath $sdk)
+} catch {
+    $sdkFailure = $_.Exception.Message
+}
+if ($sdkFailure) {
+    $message = "JavaFX SDK check failed: $sdkFailure"
     Write-Host "[FAIL] JavaFX SDK: $message" -ForegroundColor Red
     throw $message
 }
-$jars = @(Get-ChildItem -LiteralPath $sdk -Filter 'javafx*.jar' -File | Sort-Object Name)
 try {
-    $modules = Get-JavaFxModules
+    $modules = Get-JavaFxModules -SdkPath $sdk
 } catch {
     $message = "Invalid JavaFX module configuration: $($_.Exception.Message)"
     Write-Host "[FAIL] JavaFX modules: $message" -ForegroundColor Red

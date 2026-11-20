@@ -153,16 +153,72 @@ function Get-InstalledJavaFxPath {
     $null
 }
 
-function Get-JavaFxModules {
-    $moduleSetting = if ([string]::IsNullOrWhiteSpace($env:JAVAFX_MODULES)) {
-        'javafx.controls,javafx.fxml'
-    } else {
-        $env:JAVAFX_MODULES
+function Get-RequiredJavaFxPath {
+    $sdkPath = Get-InstalledJavaFxPath
+    if ($sdkPath) {
+        return $sdkPath
     }
 
-    $modules = @($moduleSetting -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if ($modules.Count -eq 0 -or @($modules | Where-Object { $_ -notmatch '^javafx\.[A-Za-z0-9.]+$' }).Count -gt 0) {
+    $candidates = @(
+        $env:PATH_TO_FX,
+        [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    $checkedPaths = if ($candidates.Count -gt 0) { $candidates -join '; ' } else { '(PATH_TO_FX is not set)' }
+    throw "JavaFX SDK was not found. Checked PATH_TO_FX location(s): $checkedPaths. Each SDK folder must contain javafx.controls.jar. Run install.ps1, then open a new terminal."
+}
+
+function Get-JavaFxSdkJars {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $SdkPath
+    )
+
+    if (-not (Test-Path -LiteralPath $SdkPath -PathType Container)) {
+        throw "JavaFX SDK folder does not exist: '$SdkPath'. Run the JavaFX Hotspot installer again."
+    }
+
+    $requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
+    $invalidJars = @()
+    foreach ($jarName in $requiredJars) {
+        $jarPath = Join-Path $SdkPath $jarName
+        $jar = Get-Item -LiteralPath $jarPath -ErrorAction SilentlyContinue
+        if (-not $jar -or $jar.Length -le 0) {
+            $invalidJars += $jarName
+        }
+    }
+    if ($invalidJars.Count -gt 0) {
+        throw "JavaFX SDK folder '$SdkPath' is incomplete or damaged. Missing or empty required JAR(s): $($invalidJars -join ', '). Reinstall JavaFX Hotspot to repair it."
+    }
+
+    @(Get-ChildItem -LiteralPath $SdkPath -Filter 'javafx*.jar' -File | Sort-Object Name)
+}
+
+function Get-JavaFxModules {
+    param(
+        [string] $SdkPath
+    )
+
+    $moduleSetting = if ([string]::IsNullOrWhiteSpace($env:JAVAFX_MODULES)) { 'javafx.controls,javafx.fxml' } else { $env:JAVAFX_MODULES }
+
+    $requestedModules = @($moduleSetting -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($requestedModules.Count -eq 0 -or @($requestedModules | Where-Object {
+        $_ -cnotmatch '^javafx\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$'
+    }).Count -gt 0) {
         throw "Invalid JAVAFX_MODULES value '$moduleSetting'. Use comma-separated module names such as javafx.controls,javafx.fxml,javafx.media."
+    }
+
+    $modules = [System.Collections.Generic.List[string]]::new()
+    foreach ($module in $requestedModules) {
+        if ($modules -contains $module) {
+            continue
+        }
+        if ($SdkPath) {
+            $moduleJar = Get-Item -LiteralPath (Join-Path $SdkPath ($module + '.jar')) -ErrorAction SilentlyContinue
+            if (-not $moduleJar -or $moduleJar.Length -le 0) {
+                throw "JavaFX module '$module' was requested in JAVAFX_MODULES, but '$module.jar' is missing or empty in SDK folder '$SdkPath'. Check the module name or reinstall the SDK."
+            }
+        }
+        $modules.Add($module)
     }
 
     $modules -join ','
