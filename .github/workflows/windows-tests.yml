@@ -65,6 +65,12 @@ jobs:
             throw 'Installer did not install the javafxupdate command.'
           }
 
+          $javafxCommand = Join-Path $env:LOCALAPPDATA 'JavaFXHotspot\bin\javafx.cmd'
+          $usageOutput = & $javafxCommand 2>&1
+          if ($LASTEXITCODE -eq 0 -or ($usageOutput -join "`n") -notmatch 'Usage: javafx') {
+            throw "Running javafx without an app name did not show usage information. Output: $($usageOutput -join ' ')"
+          }
+
           $project = Join-Path $env:RUNNER_TEMP ("javafx-hotspot smoke " + [guid]::NewGuid().ToString('N'))
           $sourceDirectory = Join-Path $project 'src\smoke'
           New-Item -ItemType Directory -Path $sourceDirectory -Force | Out-Null

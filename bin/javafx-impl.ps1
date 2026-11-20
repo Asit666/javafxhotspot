@@ -1,18 +1,18 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
+    [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
     [string[]] $CommandArguments
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\scripts\common.ps1')
 
-$sdk = Get-RequiredJavaFxPath
-$null = Get-JavaFxSdkJars -SdkPath $sdk
-
 if (-not $CommandArguments -or $CommandArguments.Count -eq 0) {
     throw 'Usage: javafx [-Xmx<size>] ClassName [application arguments]'
 }
+
+$sdk = Get-RequiredJavaFxPath
+$null = Get-JavaFxSdkJars -SdkPath $sdk
 
 $vmOptions = [System.Collections.Generic.List[string]]::new()
 $programArguments = [System.Collections.Generic.List[string]]::new()

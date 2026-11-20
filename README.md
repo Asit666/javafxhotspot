@@ -25,11 +25,29 @@ to `install.ps1`; no particular PowerShell working directory is required.
 
 ### If Git is installed
 
-Clone the project and run the installer:
+If you do not already have the repository folder, clone it and run the
+installer:
 
 ```powershell
-git clone https://github.com/Asit666/javafxhotspot.git "$HOME\javafxhotspot"
 $repo = Join-Path $HOME 'javafxhotspot'
+if (Test-Path -LiteralPath $repo) {
+  throw "The folder '$repo' already exists. Use the existing-clone instructions below, or choose another folder."
+}
+git clone https://github.com/Asit666/javafxhotspot.git $repo
+if ($LASTEXITCODE -ne 0) { throw 'Could not clone JavaFX Hotspot; installation was not started.' }
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'JavaFX Hotspot installation failed.' }
+```
+
+If you already have a Git clone, update it instead of cloning over it:
+
+```powershell
+$repo = Join-Path $HOME 'javafxhotspot'
+if (-not (Test-Path -LiteralPath (Join-Path $repo '.git'))) {
+  throw "No Git clone was found at '$repo'. Use the ZIP installation instructions instead."
+}
+git -C $repo pull --ff-only
+if ($LASTEXITCODE -ne 0) { throw 'Could not update the existing clone; installation was not started.' }
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo 'install.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'JavaFX Hotspot installation failed.' }
 ```
@@ -101,8 +119,13 @@ javafxupdate
 ```
 
 `javafxupdate` is installed by the current installer. If PowerShell says the
-command is not recognized, bootstrap it once from the latest ZIP, using one
-folder variable consistently:
+command is not recognized, first open a new PowerShell window and check
+`Get-Command javafxupdate`. If it is still missing (for example, after
+uninstalling JavaFX Hotspot), bootstrap again using an existing updated Git
+clone as shown above, or install from the latest ZIP below. Do not run `git
+clone` into a folder that already exists.
+
+To bootstrap from the latest ZIP, use one folder variable consistently:
 
 ```powershell
 $ErrorActionPreference = 'Stop'
