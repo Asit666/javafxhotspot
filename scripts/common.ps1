@@ -221,11 +221,6 @@ function Get-CurrentJdk {
 function Get-InstalledJavaFxPath {
     $processCandidate = $env:PATH_TO_FX
     $requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
-    if (-not [string]::IsNullOrWhiteSpace($processCandidate) -and
-        (Test-Path -LiteralPath (Join-Path $processCandidate 'javafx.controls.jar') -PathType Leaf)) {
-        return $processCandidate
-    }
-
     $candidates = @(
         $processCandidate,
         [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
@@ -247,12 +242,6 @@ function Get-InstalledJavaFxPath {
         }
     }
 
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath (Join-Path $candidate 'javafx.controls.jar') -PathType Leaf) {
-            return $candidate
-        }
-    }
-
     $null
 }
 
@@ -266,6 +255,15 @@ function Get-RequiredJavaFxPath {
         $env:PATH_TO_FX,
         [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            try {
+                Get-JavaFxSdkJars -SdkPath $candidate -ValidateNativeLibraries
+            } catch {
+                throw
+            }
+        }
+    }
     $checkedPaths = if ($candidates.Count -gt 0) { $candidates -join '; ' } else { '(PATH_TO_FX is not set)' }
     throw "JavaFX SDK was not found. Checked PATH_TO_FX location(s): $checkedPaths. Each SDK folder must contain javafx.controls.jar. Run install.ps1, then open a new terminal."
 }
@@ -358,9 +356,25 @@ function Assert-JavaFxMatchesJdk {
         [string] $SdkPath
     )
 
-    $versionMatch = [regex]::Match($SdkPath, '(?i)javafx-(?:sdk-)?(\d+(?:\.\d+)+)')
-    if (-not $versionMatch.Success) {
-        throw "Could not determine the JavaFX SDK version from '$SdkPath'. Run the JavaFX Hotspot installer or use an SDK folder containing a supported JavaFX version name."
+    $sdkRoot = Split-Path -Parent $SdkPath
+    $versionFile = Join-Path $sdkRoot 'javafx-version.txt'
+    $version = $null
+    if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
+        $metadataVersion = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+        if ($metadataVersion -match '^\d+(?:\.\d+)+$') {
+            $version = $metadataVersion
+        } else {
+            throw "Invalid JavaFX SDK version metadata '$versionFile': '$metadataVersion'."
+        }
+    } else {
+        $versionMatch = [regex]::Match($SdkPath, '(?i)javafx-(?:sdk-)?(\d+(?:\.\d+)+)')
+        if ($versionMatch.Success) {
+            $version = $versionMatch.Groups[1].Value
+        }
+    }
+    if (-not $version) {
+        Write-Warning "Could not determine the JavaFX SDK version from '$SdkPath'. Compatibility with JDK $JdkMajor was not verified; run the JavaFX Hotspot installer for a managed SDK."
+        return
     }
 
     $versionsFile = Join-Path $PSScriptRoot '..\javafx-versions.json'
@@ -368,9 +382,11 @@ function Assert-JavaFxMatchesJdk {
         return
     }
 
-    $version = $versionMatch.Groups[1].Value
     $table = Get-Content -LiteralPath $versionsFile -Raw | ConvertFrom-Json
     $release = $table.releases | Where-Object { $_.version -eq $version } | Select-Object -First 1
+    if (-not $release) {
+        throw "Unknown JavaFX SDK version '$version'. Update javafx-versions.json or reinstall a supported JavaFX SDK."
+    }
     if ($release -and $JdkMajor -lt [int] $release.minimumJdk) {
         throw "JavaFX $version requires JDK $($release.minimumJdk) or newer, but the active JDK is $JdkMajor. Run the JavaFX Hotspot installer again after selecting a compatible JDK."
     }
@@ -394,6 +410,10 @@ function Resolve-JavaSource {
         $Source.Contains('\') -or $Source.Contains('/')) {
         throw "Could not find explicit Java source path '$Source'."
     }
+    if ([System.IO.Path]::IsPathRooted($Source) -or
+        $Source.Contains('\') -or $Source.Contains('/')) {
+        throw "Could not find explicit Java source path '$Source'."
+    }
 
     $fileName = [System.IO.Path]::GetFileName($Source)
     if (-not $fileName.EndsWith('.java', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -401,12 +421,31 @@ function Resolve-JavaSource {
     }
 
     $projectRoot = (Get-Location).Path
-    $excludedDirectoryPattern = '[\\/](\.git|\.gradle|\.idea|\.vscode|build|target|node_modules|out|dist)[\\/]'
-    $matches = @(Get-ChildItem -LiteralPath $projectRoot -File -Recurse -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase) -and
-            $_.FullName -notmatch $excludedDirectoryPattern
-        })
+    $excludedDirectoryNames = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($directoryName in @('.git', '.gradle', '.idea', '.vscode', 'build', 'target', 'node_modules', 'out', 'dist')) {
+        $excludedDirectoryNames.Add($directoryName) | Out-Null
+    }
+    $directories = [System.Collections.Generic.Queue[string]]::new()
+    $directories.Enqueue($projectRoot)
+    $matches = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+    while ($directories.Count -gt 0) {
+        $directory = $directories.Dequeue()
+        foreach ($file in Get-ChildItem -LiteralPath $directory -File -ErrorAction SilentlyContinue) {
+            if ($file.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $matches.Add($file)
+            }
+        }
+        foreach ($childDirectory in Get-ChildItem -LiteralPath $directory -Directory -Force -ErrorAction SilentlyContinue) {
+            if ($excludedDirectoryNames.Contains($childDirectory.Name)) {
+                continue
+            }
+            if ($childDirectory.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                continue
+            }
+            $directories.Enqueue($childDirectory.FullName)
+        }
+    }
 
     if ($matches.Count -eq 0) {
         throw "Could not find '$fileName' in the current folder or its project subfolders."

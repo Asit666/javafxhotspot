@@ -140,6 +140,15 @@ public class MyApp {
     if ($packageName -ne 'example') {
         throw "Package comments or string text were misdetected: $packageName"
     }
+
+    try {
+        Resolve-JavaSource -Source '.\missing-folder\MyApp.java' | Out-Null
+        throw 'Explicit invalid source paths should not fall back to filename search.'
+    } catch {
+        if ($_.Exception.Message -notlike "Could not find explicit Java source path*") {
+            throw
+        }
+    }
 } finally {
     Set-Location -LiteralPath $previousLocation
     $env:PATH = $previousPath

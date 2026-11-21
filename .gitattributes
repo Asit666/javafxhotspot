@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+.git export-ignore
+.github export-ignore
+tests export-ignore
+JAVA-PACKAGE-MANAGER-PROTOTYPE.md export-ignore

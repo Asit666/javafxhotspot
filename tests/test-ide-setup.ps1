@@ -146,7 +146,7 @@ run.jvmargs=-Xmx512m --module-path "C:/old/javafx-sdk-21.0.1/lib" --add-modules 
 javac.classpath=\
     ${file.reference.libs-example.jar}
 run.classpath=${javac.classpath}
-run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
+run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib" --enable-native-access=javafx.swing,javafx.user-custom
 '@ | Set-Content -LiteralPath (Join-Path $netBeansEdgeDirectory 'project.properties')
     & $setupScript $netBeansEdgeProject -IDE netbeans
     if ($LASTEXITCODE -ne 0) {
@@ -156,7 +156,8 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
     if ($netBeansEdgeProperties -match '(?m)^javac\.classpath=\\\s*$' -or
         $netBeansEdgeProperties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.libs-example\.jar\}' -or
         $netBeansEdgeProperties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.javafx\.controls\.jar\}' -or
-        $netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml(?: --enable-native-access=javafx\.graphics)?\r?$' -or
+        $netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml' -or
+        $netBeansEdgeProperties -notmatch 'javafx\.swing,javafx\.user-custom' -or
         $netBeansEdgeProperties -match 'old/javafx-sdk') {
         throw "NetBeans setup did not preserve continued classpath values and replace both JavaFX runtime options. Result: $netBeansEdgeProperties"
     }
@@ -171,7 +172,7 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
         throw 'javafxsetup failed to replace equals-form NetBeans JavaFX VM options.'
     }
     $netBeansEdgeProperties = Get-Content -LiteralPath (Join-Path $netBeansEdgeDirectory 'project.properties') -Raw
-    if ($netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml(?: --enable-native-access=javafx\.graphics)?\r?$' -or
+    if ($netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml' -or
         $netBeansEdgeProperties -match 'old/javafx-sdk') {
         throw "NetBeans setup did not replace equals-form JavaFX VM options. Result: $netBeansEdgeProperties"
     }
@@ -227,7 +228,9 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
     $incompleteSdkPath = Join-Path $tempRoot 'incomplete-sdk\lib'
     New-Item -ItemType Directory -Path $incompleteSdkPath -Force | Out-Null
     New-Item -ItemType File -Path (Join-Path $incompleteSdkPath 'javafx.controls.jar') | Out-Null
+    $previousUserSdk = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
     $env:PATH_TO_FX = $incompleteSdkPath
+    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $incompleteSdkPath, 'User')
     $incompleteSdkFailure = $null
     try {
         & $setupScript $projectPath -IDE intellij
@@ -235,12 +238,13 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
         $incompleteSdkFailure = $_.Exception.Message
     } finally {
         $env:PATH_TO_FX = $sdkPath
+        [Environment]::SetEnvironmentVariable('PATH_TO_FX', $previousUserSdk, 'User')
     }
     if ($incompleteSdkFailure -notmatch 'SDK folder .* is incomplete' -or
         $incompleteSdkFailure -notmatch 'javafx\.base\.jar' -or
         $incompleteSdkFailure -notmatch 'javafx\.graphics\.jar' -or
         $incompleteSdkFailure -notmatch 'javafx\.fxml\.jar') {
-        throw 'javafxsetup should report the exact missing required JARs when the SDK is incomplete.'
+        throw "javafxsetup should report the exact missing required JARs when the SDK is incomplete. Actual: $incompleteSdkFailure"
     }
 
     $quotedSdkPath = Join-Path $tempRoot "quote's-sdk\lib"

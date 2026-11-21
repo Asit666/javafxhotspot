@@ -20,7 +20,14 @@ $requiredSdkJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.
 $requiredSdkNativeLibraries = @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')
 $bin = Join-Path $installRoot 'bin'
 
-foreach ($directoryToCheck in @($installRoot, $bin, (Join-Path $installRoot 'scripts'), (Join-Path $installRoot 'sdk'))) {
+foreach ($directoryToCheck in @(
+    $installRoot,
+    $bin,
+    (Join-Path $installRoot 'scripts'),
+    (Join-Path $installRoot 'sdk'),
+    $sdkRoot,
+    $sdkLib
+)) {
     if (Test-Path -LiteralPath $directoryToCheck) {
         $directoryItem = Get-Item -LiteralPath $directoryToCheck -Force
         if ($directoryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
@@ -182,15 +189,19 @@ $previousPathToFxFile = Join-Path $installRoot 'previous-path-to-fx.txt'
 $managedPathToFxFile = Join-Path $installRoot 'managed-path-to-fx.txt'
 $currentUserFxPath = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
 if (Test-Path -LiteralPath $managedPathToFxFile -PathType Leaf) {
-    $previousPathToFx = if (Test-Path -LiteralPath $previousPathToFxFile -PathType Leaf) {
-        (Get-Content -LiteralPath $previousPathToFxFile -Raw).Trim()
+    $previousManagedFxPath = if (Test-Path -LiteralPath $managedPathToFxFile -PathType Leaf) {
+        (Get-Content -LiteralPath $managedPathToFxFile -Raw).Trim()
+    } else { $null }
+    if ($currentUserFxPath -and $previousManagedFxPath -and
+        (Test-PathEntryEquals -PathEntry $currentUserFxPath -Directory $previousManagedFxPath)) {
+        $previousPathToFx = if (Test-Path -LiteralPath $previousPathToFxFile -PathType Leaf) {
+            (Get-Content -LiteralPath $previousPathToFxFile -Raw).Trim()
+        } else { $null }
     } else {
-        $null
+        $previousPathToFx = $currentUserFxPath
     }
-} elseif (-not (Test-PathWithinDirectory -Path $currentUserFxPath -Directory $installRoot)) {
-    $previousPathToFx = $currentUserFxPath
 } else {
-    $previousPathToFx = $null
+    $previousPathToFx = $currentUserFxPath
 }
 Set-Content -LiteralPath $previousPathToFxFile -Value ([string] $previousPathToFx)
 Set-Content -LiteralPath $managedPathToFxFile -Value $sdkLib -NoNewline

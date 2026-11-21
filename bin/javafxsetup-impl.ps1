@@ -771,16 +771,27 @@ function Invoke-IdeSetup {
     }
 }
 
-$sdkCandidates = @(
+$sdkCandidates = @(@(
     $env:PATH_TO_FX,
     [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
-) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
 $sdk = Get-InstalledJavaFxPath
 if (-not $sdk) {
     $candidateDescription = if ($sdkCandidates.Count -gt 0) {
         $sdkCandidates -join '; '
     } else {
         '(PATH_TO_FX is not set)'
+    }
+    foreach ($candidate in $sdkCandidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            try {
+                Get-JavaFxSdkJars -SdkPath $candidate -ValidateNativeLibraries
+            } catch {
+                $message = "JavaFX SDK check failed: $($_.Exception.Message)"
+                Write-Host "[FAIL] JavaFX SDK: $message" -ForegroundColor Red
+                throw $message
+            }
+        }
     }
     $message = "JavaFX SDK was not found. Checked PATH_TO_FX location(s): $candidateDescription. Each SDK folder must contain javafx.controls.jar. Run install.ps1, then open a new terminal."
     Write-Host "[FAIL] JavaFX SDK: $message" -ForegroundColor Red
@@ -846,6 +857,7 @@ try {
     $setupJdk = Get-CurrentJdk
     if ($setupJdk.Major -ge 24) {
         $nativeAccessNames = [System.Collections.Generic.List[string]]::new()
+        $nativeAccessNames.Add('javafx.graphics')
         foreach ($moduleName in @('javafx.graphics', 'javafx.media', 'javafx.web')) {
                 if (($modules -split ',' -contains $moduleName) -and
                     $nativeAccessNames -notcontains $moduleName) {

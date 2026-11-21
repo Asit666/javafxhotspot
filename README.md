@@ -20,6 +20,12 @@ JavaFX versions and their minimum JDK versions are maintained in
 [`javafx-versions.json`](javafx-versions.json). JavaFX SDKs are downloaded only
 from `download2.gluonhq.com`.
 
+For a custom SDK directory, add `javafx-version.txt` beside its `lib` and `bin`
+folders with the exact JavaFX version, for example `25.0.5.1`. JavaFX Hotspot
+uses this metadata before compatibility checks. If no version is known, it
+warns and does not guess; managed SDK folders contain this metadata after
+installation.
+
 ## Install
 
 First download or clone this repository. Run the installer using the full path

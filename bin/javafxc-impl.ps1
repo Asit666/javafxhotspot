@@ -58,6 +58,12 @@ if (Test-Path -LiteralPath $outputDirectory) {
         Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
         throw "Refusing to replace linked build output '$outputDirectory'."
     }
+    $linkedOutputDirectories = @(Get-ChildItem -LiteralPath $outputDirectory -Directory -Force -Recurse -ErrorAction Stop |
+        Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint })
+    if ($linkedOutputDirectories.Count -gt 0) {
+        Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        throw "Refusing to replace build output '$outputDirectory' because it contains linked directories: $(($linkedOutputDirectories | ForEach-Object { $_.FullName }) -join '; ')."
+    }
     $backupDirectory = Join-Path $buildDirectory ('classes-backup-' + [guid]::NewGuid().ToString('N'))
     try {
         Move-Item -LiteralPath $outputDirectory -Destination $backupDirectory
@@ -76,6 +82,9 @@ try {
         } catch {
             throw "Could not publish the successful build, and automatic restoration of the previous build failed. Previous build remains at '$backupDirectory'. $($_.Exception.Message)"
         }
+        if (Test-Path -LiteralPath $stagingDirectory) {
+            Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
     } else {
         if (Test-Path -LiteralPath $stagingDirectory) {
             Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
@@ -85,6 +94,10 @@ try {
 }
 
 if ($backupDirectory -and (Test-Path -LiteralPath $backupDirectory)) {
-    Remove-Item -LiteralPath $backupDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    try {
+        Remove-Item -LiteralPath $backupDirectory -Recurse -Force -ErrorAction Stop
+    } catch {
+        Write-Warning "The successful build was published, but the previous build backup could not be removed at '$backupDirectory': $($_.Exception.Message)"
+    }
 }
 exit 0

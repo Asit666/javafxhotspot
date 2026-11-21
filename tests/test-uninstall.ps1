@@ -136,9 +136,12 @@ try {
     New-Item -ItemType Directory -Path $bin, $sdkLib -Force | Out-Null
     Set-Content -LiteralPath (Join-Path $bin 'marker.txt') -Value 'test'
     $env:PATH = $bin + ';' + $previousPath
-    $env:PATH_TO_FX = $sdkLib
+    $customSdk = Join-Path $tempRoot 'custom-swing-sdk\lib'
+    $env:PATH_TO_FX = $customSdk
     [Environment]::SetEnvironmentVariable('Path', $bin + ';C:\Keep', 'User')
-    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $sdkLib, 'User')
+    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $customSdk, 'User')
+    Set-Content -LiteralPath (Join-Path $installRoot 'managed-path-to-fx.txt') -Value $sdkLib -NoNewline
+    Set-Content -LiteralPath (Join-Path $installRoot 'previous-path-to-fx.txt') -Value 'C:\OldJavaFX\lib'
     $scriptPath = (Join-Path $repositoryRoot 'uninstall.ps1').Replace("'", "''")
     $isolatedHome = $tempRoot.Replace("'", "''")
     $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command (
@@ -150,7 +153,7 @@ try {
         throw 'PowerShell -File uninstall did not remove the isolated JavaFX Hotspot install folder.'
     }
     if ([Environment]::GetEnvironmentVariable('Path', 'User') -ne 'C:\Keep' -or
-        [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')) {
+        [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User') -ne $customSdk) {
         throw 'PowerShell -File uninstall did not remove the persisted user environment settings.'
     }
 

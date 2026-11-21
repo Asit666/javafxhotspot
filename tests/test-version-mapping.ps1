@@ -73,6 +73,33 @@ foreach ($case in $cases) {
 if ((Get-JavaFxModules) -ne 'javafx.controls,javafx.fxml') {
     throw 'The default JavaFX modules should include controls and FXML only.'
 }
+$previousPathToFx = $env:PATH_TO_FX
+$previousUserPathToFx = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+$sdkFallbackRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('javafxhotspot fallback-' + [guid]::NewGuid().ToString('N'))
+$incompleteLib = Join-Path $sdkFallbackRoot 'incomplete\lib'
+$completeLib = Join-Path $sdkFallbackRoot 'complete\javafx-25.0.5.1-windows-x64\lib'
+try {
+    New-Item -ItemType Directory -Path $incompleteLib, $completeLib -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $incompleteLib 'javafx.controls.jar') -Value 'test'
+    foreach ($jarName in @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')) {
+        Set-Content -LiteralPath (Join-Path $completeLib $jarName) -Value 'test'
+    }
+    $env:PATH_TO_FX = $incompleteLib
+    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $completeLib, 'User')
+    if ((Get-InstalledJavaFxPath) -ne $completeLib) {
+        throw 'An incomplete process SDK must not hide a complete persisted SDK.'
+    }
+    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $incompleteLib, 'User')
+    if ($null -ne (Get-InstalledJavaFxPath)) {
+        throw 'An incomplete SDK must not be returned as a usable JavaFX SDK.'
+    }
+} finally {
+    $env:PATH_TO_FX = $previousPathToFx
+    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $previousUserPathToFx, 'User')
+    if (Test-Path -LiteralPath $sdkFallbackRoot) {
+        Remove-Item -LiteralPath $sdkFallbackRoot -Recurse -Force
+    }
+}
 $previousModules = $env:JAVAFX_MODULES
 $sdkTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('javafxhotspot sdk validation-' + [guid]::NewGuid().ToString('N'))
 $sdkTestLib = Join-Path $sdkTestRoot 'lib'
@@ -135,6 +162,35 @@ try {
     $env:JAVAFX_MODULES = $previousModules
     if (Test-Path -LiteralPath $sdkTestRoot) {
         Remove-Item -LiteralPath $sdkTestRoot -Recurse -Force
+    }
+}
+
+$metadataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('javafxhotspot metadata-' + [guid]::NewGuid().ToString('N'))
+$metadataLib = Join-Path $metadataRoot 'MyCustomSDK\lib'
+try {
+    New-Item -ItemType Directory -Path $metadataLib -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $metadataRoot 'MyCustomSDK\javafx-version.txt') -Value '25.0.5.1'
+    Assert-JavaFxMatchesJdk -JdkMajor 25 -SdkPath $metadataLib
+    try {
+        Assert-JavaFxMatchesJdk -JdkMajor 21 -SdkPath $metadataLib
+        throw 'Custom SDK metadata should enforce its minimum JDK.'
+    } catch {
+        if ($_.Exception.Message -notlike 'JavaFX 25.0.5.1 requires JDK 23*') {
+            throw
+        }
+    }
+    Set-Content -LiteralPath (Join-Path $metadataRoot 'MyCustomSDK\javafx-version.txt') -Value '99.0.0'
+    try {
+        Assert-JavaFxMatchesJdk -JdkMajor 25 -SdkPath $metadataLib
+        throw 'Unknown JavaFX SDK versions should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike "Unknown JavaFX SDK version '99.0.0'*") {
+            throw
+        }
+    }
+} finally {
+    if (Test-Path -LiteralPath $metadataRoot) {
+        Remove-Item -LiteralPath $metadataRoot -Recurse -Force
     }
 }
 
