@@ -7,7 +7,9 @@ or another IDE terminal.
 ## Requirements
 
 - Windows 10/11, x64
-- JDK 11 or newer, with both `java` and `javac` available on `PATH`
+- JDK 11 or newer, with both `java` and `javac` available on `PATH`.
+  JDK 11 selects legacy JavaFX 17.0.21; JavaFX 17 reached LTS end-of-support in
+  October 2026. JDK 17 or newer is recommended for maintained JavaFX releases.
 - An internet connection for the initial installation and `javafxupdate`
 
 The installer checks that `java` and `javac` use the same JDK version, checks
@@ -317,20 +319,6 @@ declaration for you. You can also spell out the full name yourself:
 ```powershell
 javafx example.MyApp
 ```
-
-For the Liquid Glass demo in this repository, run these from the project root:
-
-```powershell
-javafxc .\src\main\java\com\example\liquidglass\LiquidGlassDemo.java
-javafx com.example.liquidglass.LiquidGlassDemo
-```
-
-The demo loads its layout from
-`src\main\resources\com\example\liquidglass\liquid-glass.fxml` and its styles
-from `liquid-glass.css` in the same folder. The FXML defines the visible title
-and caption, while the Java code creates the animated-looking background and
-glass effect. The default `javafx.controls,javafx.fxml` modules are sufficient
-for this demo.
 
 ### Set Java memory
 

@@ -53,6 +53,11 @@ try {
 
 $backupDirectory = $null
 if (Test-Path -LiteralPath $outputDirectory) {
+    $outputItem = Get-Item -LiteralPath $outputDirectory -Force
+    if ($outputItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        throw "Refusing to replace linked build output '$outputDirectory'."
+    }
     $backupDirectory = Join-Path $buildDirectory ('classes-backup-' + [guid]::NewGuid().ToString('N'))
     try {
         Move-Item -LiteralPath $outputDirectory -Destination $backupDirectory
@@ -66,7 +71,15 @@ try {
     Move-Item -LiteralPath $stagingDirectory -Destination $outputDirectory
 } catch {
     if ($backupDirectory -and (Test-Path -LiteralPath $backupDirectory)) {
-        Move-Item -LiteralPath $backupDirectory -Destination $outputDirectory -ErrorAction SilentlyContinue
+        try {
+            Move-Item -LiteralPath $backupDirectory -Destination $outputDirectory -ErrorAction Stop
+        } catch {
+            throw "Could not publish the successful build, and automatic restoration of the previous build failed. Previous build remains at '$backupDirectory'. $($_.Exception.Message)"
+        }
+    } else {
+        if (Test-Path -LiteralPath $stagingDirectory) {
+            Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
     throw "Could not publish the successful build at '$outputDirectory': $($_.Exception.Message)"
 }

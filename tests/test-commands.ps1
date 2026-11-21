@@ -16,6 +16,8 @@ $previousOs = $env:OS
 $previousLocation = (Get-Location).Path
 $previousJavacFail = $env:JAVAFX_TEST_JAVAC_FAIL
 $previousModules = $env:JAVAFX_MODULES
+$previousJavacLog = $env:JAVAFX_TEST_JAVAC_LOG
+$previousJavaLog = $env:JAVAFX_TEST_JAVA_LOG
 
 try {
     New-Item -ItemType Directory -Path $fakeJdkBin, $sdkLib, $sourceDirectory, $resourceDirectory -Force | Out-Null
@@ -146,6 +148,9 @@ public class MyApp {
     Remove-Item Env:JAVAFX_TEST_JAVAC_LOG -ErrorAction SilentlyContinue
     Remove-Item Env:JAVAFX_TEST_JAVA_LOG -ErrorAction SilentlyContinue
     $env:JAVAFX_TEST_JAVAC_FAIL = $previousJavacFail
+    $env:JAVAFX_MODULES = $previousModules
+    $env:JAVAFX_TEST_JAVAC_LOG = $previousJavacLog
+    $env:JAVAFX_TEST_JAVA_LOG = $previousJavaLog
     if (Test-Path -LiteralPath $tempRoot) {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force
     }

@@ -38,8 +38,19 @@ if (@($persistedUserPath -split ';' | Where-Object {
 }
 
 $userFxPath = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+$managedPathToFxFile = Join-Path $installRoot 'managed-path-to-fx.txt'
+$previousPathToFxFile = Join-Path $installRoot 'previous-path-to-fx.txt'
+$restoreUserFxPath = $null
+if (Test-Path -LiteralPath $managedPathToFxFile -PathType Leaf) {
+    $managedFxPath = (Get-Content -LiteralPath $managedPathToFxFile -Raw).Trim()
+    if ($managedFxPath -and (Test-PathEntryEquals -PathEntry $userFxPath -Directory $managedFxPath)) {
+        if (Test-Path -LiteralPath $previousPathToFxFile -PathType Leaf) {
+            $restoreUserFxPath = (Get-Content -LiteralPath $previousPathToFxFile -Raw).Trim()
+        }
+    }
+}
 if (Test-PathWithinDirectory -Path $userFxPath -Directory $sdkRoot) {
-    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $null, 'User')
+    [Environment]::SetEnvironmentVariable('PATH_TO_FX', $restoreUserFxPath, 'User')
 }
 if (Test-PathWithinDirectory -Path ([Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')) -Directory $sdkRoot) {
     throw "Could not remove JavaFX Hotspot's managed JavaFX SDK path from the current user's PATH_TO_FX."
@@ -47,7 +58,7 @@ if (Test-PathWithinDirectory -Path ([Environment]::GetEnvironmentVariable('PATH_
 
 $env:PATH = Remove-PathEntriesForDirectory -PathValue $env:PATH -Directory $bin
 if (Test-PathWithinDirectory -Path $env:PATH_TO_FX -Directory $sdkRoot) {
-    $env:PATH_TO_FX = $null
+    $env:PATH_TO_FX = $restoreUserFxPath
 }
 if (@($env:PATH -split ';' | Where-Object {
     Test-PathEntryEquals -PathEntry $_ -Directory $bin

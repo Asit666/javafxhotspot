@@ -368,6 +368,10 @@ function Resolve-JavaSource {
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {
         return (Get-Item -LiteralPath $candidate).FullName
     }
+    if ([System.IO.Path]::IsPathRooted($Source) -or
+        $Source.Contains('\') -or $Source.Contains('/')) {
+        throw "Could not find explicit Java source path '$Source'."
+    }
 
     $fileName = [System.IO.Path]::GetFileName($Source)
     if (-not $fileName.EndsWith('.java', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -375,26 +379,12 @@ function Resolve-JavaSource {
     }
 
     $projectRoot = (Get-Location).Path
-    $searchDirectories = @(
-        (Join-Path $projectRoot 'src\main\java'),
-        (Join-Path $projectRoot 'src'),
-        (Join-Path $projectRoot 'java'),
-        $projectRoot
-    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -Unique
-
-    $matches = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
-    foreach ($searchDirectory in $searchDirectories) {
-        $directoryMatches = @(Get-ChildItem -LiteralPath $searchDirectory -File -Recurse -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase) -and
-                $_.FullName -notmatch '[\\/](\.git|build|target|node_modules)[\\/]'
-            })
-        foreach ($directoryMatch in $directoryMatches) {
-            if (@($matches | Where-Object { $_.FullName -ieq $directoryMatch.FullName }).Count -eq 0) {
-                $matches.Add($directoryMatch)
-            }
-        }
-    }
+    $excludedDirectoryPattern = '[\\/](\.git|\.gradle|\.idea|\.vscode|build|target|node_modules|out|dist)[\\/]'
+    $matches = @(Get-ChildItem -LiteralPath $projectRoot -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.FullName -notmatch $excludedDirectoryPattern
+        })
 
     if ($matches.Count -eq 0) {
         throw "Could not find '$fileName' in the current folder or its project subfolders."

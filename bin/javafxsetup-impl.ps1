@@ -703,14 +703,28 @@ function Set-NetBeansClassPath {
             } else {
                 $current = ($current + ' --add-modules ' + $Modules).Trim()
             }
-            if ($current -match '--enable-native-access(?:\s+|=)\S+') {
-                if ($NativeAccessModules) {
-                    $current = [regex]::Replace($current, '--enable-native-access(?:\s+|=)\S+', '--enable-native-access=' + $NativeAccessModules)
-                } else {
-                    $current = [regex]::Replace($current, '\s*--enable-native-access(?:\s+|=)\S+', '')
+            $mergedNativeAccess = [System.Collections.Generic.List[string]]::new()
+            $nativeAccessMatch = [regex]::Match($current, '(?i)--enable-native-access(?:=|\s+)(?<modules>[^\s]+)')
+            if ($nativeAccessMatch.Success) {
+                foreach ($nativeModule in ($nativeAccessMatch.Groups['modules'].Value -split ',')) {
+                    if ($nativeModule -and $mergedNativeAccess -notcontains $nativeModule) {
+                        $mergedNativeAccess.Add($nativeModule)
+                    }
                 }
-            } elseif ($NativeAccessModules) {
-                $current = ($current + ' --enable-native-access=' + $NativeAccessModules).Trim()
+            }
+            if ($NativeAccessModules) {
+                foreach ($nativeModule in ($NativeAccessModules -split ',')) {
+                    if ($nativeModule -and $mergedNativeAccess -notcontains $nativeModule) {
+                        $mergedNativeAccess.Add($nativeModule)
+                    }
+                }
+            }
+            $current = [regex]::Replace(
+                $current,
+                '(?i)\s*--enable-native-access(?:=|\s+)[^\s]+',
+                '')
+            if ($mergedNativeAccess.Count -gt 0) {
+                $current = ($current + ' --enable-native-access=' + ($mergedNativeAccess -join ',')).Trim()
             }
             $lines[$index] = 'run.jvmargs=' + $current
             $foundRuntime = $true
@@ -832,9 +846,9 @@ try {
     $setupJdk = Get-CurrentJdk
     if ($setupJdk.Major -ge 24) {
         $nativeAccessNames = [System.Collections.Generic.List[string]]::new()
-        $nativeAccessNames.Add('javafx.graphics')
         foreach ($moduleName in @('javafx.graphics', 'javafx.media', 'javafx.web')) {
-            if ($modules -split ',' -contains $moduleName) {
+                if (($modules -split ',' -contains $moduleName) -and
+                    $nativeAccessNames -notcontains $moduleName) {
                 $nativeAccessNames.Add($moduleName)
             }
         }

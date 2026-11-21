@@ -17,7 +17,17 @@ $installRoot = Join-Path $env:LOCALAPPDATA 'JavaFXHotspot'
 $sdkRoot = Join-Path $installRoot ("sdk\javafx-" + $release.version + "-windows-x64")
 $sdkLib = Join-Path $sdkRoot 'lib'
 $requiredSdkJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
+$requiredSdkNativeLibraries = @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll')
 $bin = Join-Path $installRoot 'bin'
+
+foreach ($directoryToCheck in @($installRoot, $bin, (Join-Path $installRoot 'scripts'), (Join-Path $installRoot 'sdk'))) {
+    if (Test-Path -LiteralPath $directoryToCheck) {
+        $directoryItem = Get-Item -LiteralPath $directoryToCheck -Force
+        if ($directoryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            throw "Refusing to install through linked directory '$directoryToCheck'. Remove or inspect the link before retrying."
+        }
+    }
+}
 
 Write-Host "Detected JDK $($jdk.Major) ($($jdk.Architecture))."
 Write-Host "Selected JavaFX $($release.version) (minimum JDK $($release.minimumJdk))."
@@ -29,6 +39,13 @@ foreach ($jarName in $requiredSdkJars) {
    if (-not $jar -or $jar.Length -le 0) {
        $invalidInstalledJars += $jarName
    }
+}
+foreach ($libraryName in $requiredSdkNativeLibraries) {
+    $libraryPath = Join-Path $sdkLib $libraryName
+    $library = Get-Item -LiteralPath $libraryPath -ErrorAction SilentlyContinue
+    if (-not $library -or $library.Length -le 0) {
+        $invalidInstalledJars += $libraryName
+    }
 }
 if ($invalidInstalledJars.Count -gt 0) {
     $downloadBase = "https://download2.gluonhq.com/openjfx/$($release.version)"
@@ -83,6 +100,13 @@ if ($invalidInstalledJars.Count -gt 0) {
             $jar = Get-Item -LiteralPath $jarPath -ErrorAction SilentlyContinue
             if (-not $jar -or $jar.Length -le 0) {
                 $missingJars += $jarName
+            }
+        }
+        foreach ($libraryName in $requiredSdkNativeLibraries) {
+            $libraryPath = Join-Path $extractedLib $libraryName
+            $library = Get-Item -LiteralPath $libraryPath -ErrorAction SilentlyContinue
+            if (-not $library -or $library.Length -le 0) {
+                $missingJars += $libraryName
             }
         }
         if ($missingJars.Count -gt 0) {
@@ -151,6 +175,24 @@ foreach ($obsoleteCommandScript in @('javafxc.ps1', 'javafx.ps1', 'javafxsetup.p
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'scripts\common.ps1') -Destination (Join-Path $installRoot 'scripts\common.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'javafx-versions.json') -Destination $installRoot -Force
+Set-Content -LiteralPath (Join-Path $sdkRoot 'javafx-version.txt') -Value $release.version -NoNewline
+
+$previousPathToFxFile = Join-Path $installRoot 'previous-path-to-fx.txt'
+$managedPathToFxFile = Join-Path $installRoot 'managed-path-to-fx.txt'
+$currentUserFxPath = [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
+if (Test-Path -LiteralPath $managedPathToFxFile -PathType Leaf) {
+    $previousPathToFx = if (Test-Path -LiteralPath $previousPathToFxFile -PathType Leaf) {
+        (Get-Content -LiteralPath $previousPathToFxFile -Raw).Trim()
+    } else {
+        $null
+    }
+} elseif (-not (Test-PathWithinDirectory -Path $currentUserFxPath -Directory $installRoot)) {
+    $previousPathToFx = $currentUserFxPath
+} else {
+    $previousPathToFx = $null
+}
+Set-Content -LiteralPath $previousPathToFxFile -Value ([string] $previousPathToFx)
+Set-Content -LiteralPath $managedPathToFxFile -Value $sdkLib -NoNewline
 
 [Environment]::SetEnvironmentVariable('PATH_TO_FX', $sdkLib, 'User')
 $env:PATH_TO_FX = $sdkLib

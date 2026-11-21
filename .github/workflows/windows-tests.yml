@@ -79,10 +79,16 @@ jobs:
           New-Item -ItemType Directory -Path $sourceDirectory -Force | Out-Null
           @'
           package smoke;
+          import javafx.application.Application;
+          import javafx.stage.Stage;
           import javafx.scene.paint.Color;
-          public class Smoke {
+          public class Smoke extends Application {
               public static void main(String[] args) {
-                  if (args.length != 1 || !args[0].equals("-Xmx-is-app-argument")) {
+                  launch(args);
+              }
+              @Override public void start(Stage stage) {
+                  var parameters = getParameters().getRaw();
+                  if (parameters.size() != 1 || !parameters.get(0).equals("-Xmx-is-app-argument")) {
                       throw new IllegalStateException("Application arguments were not forwarded.");
                   }
                   var fxml = Smoke.class.getResource("/smoke/main.fxml");
@@ -95,6 +101,11 @@ jobs:
                       if (!(root instanceof javafx.scene.layout.Pane)) {
                           throw new IllegalStateException("Unexpected FXML root.");
                       }
+                      var scene = new javafx.scene.Scene((javafx.scene.layout.Pane) root, 320, 180);
+                      scene.getStylesheets().add(css.toExternalForm());
+                      stage.setScene(scene);
+                      stage.show();
+                      stage.close();
                   } catch (java.io.IOException exception) {
                       throw new RuntimeException("FXML resource could not be loaded.", exception);
                   }
