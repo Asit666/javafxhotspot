@@ -156,7 +156,7 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
     if ($netBeansEdgeProperties -match '(?m)^javac\.classpath=\\\s*$' -or
         $netBeansEdgeProperties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.libs-example\.jar\}' -or
         $netBeansEdgeProperties -notmatch '(?m)^javac\.classpath=.*\$\{file\.reference\.javafx\.controls\.jar\}' -or
-        $netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml\r?$' -or
+        $netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml(?: --enable-native-access=javafx\.graphics)?\r?$' -or
         $netBeansEdgeProperties -match 'old/javafx-sdk') {
         throw "NetBeans setup did not preserve continued classpath values and replace both JavaFX runtime options. Result: $netBeansEdgeProperties"
     }
@@ -171,7 +171,7 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib"
         throw 'javafxsetup failed to replace equals-form NetBeans JavaFX VM options.'
     }
     $netBeansEdgeProperties = Get-Content -LiteralPath (Join-Path $netBeansEdgeDirectory 'project.properties') -Raw
-    if ($netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml\r?$' -or
+    if ($netBeansEdgeProperties -notmatch '(?m)^run\.jvmargs=-Xmx512m --module-path "[^"]+" --add-modules javafx\.controls,javafx\.fxml(?: --enable-native-access=javafx\.graphics)?\r?$' -or
         $netBeansEdgeProperties -match 'old/javafx-sdk') {
         throw "NetBeans setup did not replace equals-form JavaFX VM options. Result: $netBeansEdgeProperties"
     }

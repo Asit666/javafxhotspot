@@ -74,7 +74,20 @@ Assert-JavaFxMatchesJdk -JdkMajor $jdk.Major -SdkPath $sdk
 
 $modules = Get-JavaFxModules -SdkPath $sdk
 $nativeAccessOptions = if ($jdk.Major -ge 24) {
-    @('--enable-native-access=javafx.graphics')
+    $nativeAccessModules = [System.Collections.Generic.List[string]]::new()
+    $nativeAccessModules.Add('javafx.graphics')
+    foreach ($moduleName in @('javafx.graphics', 'javafx.media', 'javafx.web')) {
+        if ($modules -split ',' -contains $moduleName -and
+            $nativeAccessModules -notcontains $moduleName) {
+            $nativeAccessModules.Add($moduleName)
+        }
+    }
+    if ($nativeAccessModules.Count -gt 0) {
+        $nativeAccessValue = $nativeAccessModules -join ','
+        ,("--enable-native-access=$nativeAccessValue")
+    } else {
+        @()
+    }
 } else {
     @()
 }

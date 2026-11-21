@@ -596,7 +596,13 @@ function Set-IntelliJClassPath {
 }
 
 function Set-NetBeansClassPath {
-    param([string] $Root, [System.IO.FileInfo[]] $Jars, [string] $Sdk, [string] $Modules)
+    param(
+        [string] $Root,
+        [System.IO.FileInfo[]] $Jars,
+        [string] $Sdk,
+        [string] $Modules,
+        [string] $NativeAccessModules
+    )
 
     $propertiesPath = Join-Path $Root 'nbproject\project.properties'
     if (-not (Test-Path -LiteralPath $propertiesPath -PathType Leaf)) {
@@ -677,6 +683,9 @@ function Set-NetBeansClassPath {
 
     $runtimeSdkPath = $Sdk.Replace('\', '/')
     $runtimeArgs = '--module-path "' + $runtimeSdkPath + '" --add-modules ' + $Modules
+    if (-not [string]::IsNullOrWhiteSpace($NativeAccessModules)) {
+        $runtimeArgs += ' --enable-native-access=' + $NativeAccessModules
+    }
     $foundRuntime = $false
     for ($index = 0; $index -lt $lines.Count; $index++) {
         if ($lines[$index] -match '^run\.jvmargs=') {
@@ -693,6 +702,15 @@ function Set-NetBeansClassPath {
                 $current = [regex]::Replace($current, '--add-modules(?:\s+|=)\S+', '--add-modules ' + $Modules)
             } else {
                 $current = ($current + ' --add-modules ' + $Modules).Trim()
+            }
+            if ($current -match '--enable-native-access(?:\s+|=)\S+') {
+                if ($NativeAccessModules) {
+                    $current = [regex]::Replace($current, '--enable-native-access(?:\s+|=)\S+', '--enable-native-access=' + $NativeAccessModules)
+                } else {
+                    $current = [regex]::Replace($current, '\s*--enable-native-access(?:\s+|=)\S+', '')
+                }
+            } elseif ($NativeAccessModules) {
+                $current = ($current + ' --enable-native-access=' + $NativeAccessModules).Trim()
             }
             $lines[$index] = 'run.jvmargs=' + $current
             $foundRuntime = $true
@@ -808,6 +826,24 @@ try {
     $message = "Invalid JavaFX module configuration: $($_.Exception.Message)"
     Write-Host "[FAIL] JavaFX modules: $message" -ForegroundColor Red
     throw $message
+}
+$nativeAccessModules = ''
+try {
+    $setupJdk = Get-CurrentJdk
+    if ($setupJdk.Major -ge 24) {
+        $nativeAccessNames = [System.Collections.Generic.List[string]]::new()
+        $nativeAccessNames.Add('javafx.graphics')
+        foreach ($moduleName in @('javafx.graphics', 'javafx.media', 'javafx.web')) {
+            if ($modules -split ',' -contains $moduleName) {
+                $nativeAccessNames.Add($moduleName)
+            }
+        }
+        if ($nativeAccessNames.Count -gt 0) {
+            $nativeAccessModules = $nativeAccessNames -join ','
+        }
+    }
+} catch {
+    Write-Warning "Could not determine the active JDK for native-access settings: $($_.Exception.Message)"
 }
 $configured = [System.Collections.Generic.List[string]]::new()
 $skipped = [System.Collections.Generic.List[string]]::new()
@@ -935,7 +971,7 @@ $runNetBeans = $IDE -in @('all', 'netbeans') -or
     ($IDE -eq 'auto' -and (Test-Path -LiteralPath $netBeansProperties -PathType Leaf))
 if ($runNetBeans -and (Test-Path -LiteralPath $netBeansProperties -PathType Leaf)) {
     Invoke-IdeSetup -Name 'Apache NetBeans' -Action {
-        $result = Set-NetBeansClassPath -Root $projectPath -Jars $jars -Sdk $sdk -Modules $modules
+        $result = Set-NetBeansClassPath -Root $projectPath -Jars $jars -Sdk $sdk -Modules $modules -NativeAccessModules $nativeAccessModules
         if (-not $result) {
             throw "NetBeans setup did not update '$netBeansProperties'."
         }

@@ -164,7 +164,7 @@ function Get-CompatibleJavaFxRelease {
     foreach ($releaseEntry in $table.releases) {
         $minimumJdk = 0
         $minimumJdkValid = [int]::TryParse([string] $releaseEntry.minimumJdk, [ref] $minimumJdk)
-        if (-not ($releaseEntry.version -match '^\d+\.\d+\.\d+$') -or
+        if (-not ($releaseEntry.version -match '^\d+(?:\.\d+)+$') -or
             -not $minimumJdkValid -or $minimumJdk -lt 1) {
             throw "Invalid JavaFX compatibility table entry in: $VersionFile"
         }
@@ -336,9 +336,9 @@ function Assert-JavaFxMatchesJdk {
         [string] $SdkPath
     )
 
-    $versionMatch = [regex]::Match($SdkPath, '(?i)javafx-(?:sdk-)?(\d+\.\d+\.\d+)')
+    $versionMatch = [regex]::Match($SdkPath, '(?i)javafx-(?:sdk-)?(\d+(?:\.\d+)+)')
     if (-not $versionMatch.Success) {
-        return
+        throw "Could not determine the JavaFX SDK version from '$SdkPath'. Run the JavaFX Hotspot installer or use an SDK folder containing a supported JavaFX version name."
     }
 
     $versionsFile = Join-Path $PSScriptRoot '..\javafx-versions.json'
@@ -374,11 +374,27 @@ function Resolve-JavaSource {
         $fileName += '.java'
     }
 
-    $matches = @(Get-ChildItem -LiteralPath (Get-Location).Path -File -Recurse -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase) -and
-            $_.FullName -notmatch '[\\/](\.git|build|target|node_modules)[\\/]'
-        })
+    $projectRoot = (Get-Location).Path
+    $searchDirectories = @(
+        (Join-Path $projectRoot 'src\main\java'),
+        (Join-Path $projectRoot 'src'),
+        (Join-Path $projectRoot 'java'),
+        $projectRoot
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -Unique
+
+    $matches = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+    foreach ($searchDirectory in $searchDirectories) {
+        $directoryMatches = @(Get-ChildItem -LiteralPath $searchDirectory -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Name.Equals($fileName, [System.StringComparison]::OrdinalIgnoreCase) -and
+                $_.FullName -notmatch '[\\/](\.git|build|target|node_modules)[\\/]'
+            })
+        foreach ($directoryMatch in $directoryMatches) {
+            if (@($matches | Where-Object { $_.FullName -ieq $directoryMatch.FullName }).Count -eq 0) {
+                $matches.Add($directoryMatch)
+            }
+        }
+    }
 
     if ($matches.Count -eq 0) {
         throw "Could not find '$fileName' in the current folder or its project subfolders."

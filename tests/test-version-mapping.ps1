@@ -53,13 +53,13 @@ exit /b 0
 }
 
 $cases = @(
-    @{ Jdk = 26; Expected = '27.0.1' },
-    @{ Jdk = 25; Expected = '27.0.1' },
+    @{ Jdk = 26; Expected = '27.0.1.1' },
+    @{ Jdk = 25; Expected = '27.0.1.1' },
     @{ Jdk = 24; Expected = '26.0.2' },
-    @{ Jdk = 23; Expected = '25.0.5' },
+    @{ Jdk = 23; Expected = '25.0.5.1' },
     @{ Jdk = 22; Expected = '24.0.2' },
     @{ Jdk = 21; Expected = '23.0.2' },
-    @{ Jdk = 17; Expected = '21.0.13' },
+    @{ Jdk = 17; Expected = '21.0.13.1' },
     @{ Jdk = 11; Expected = '17.0.21' }
 )
 
@@ -138,12 +138,12 @@ try {
     }
 }
 
-Assert-JavaFxMatchesJdk -JdkMajor 25 -SdkPath 'C:\JavaFX\javafx-sdk-25.0.5\lib'
+Assert-JavaFxMatchesJdk -JdkMajor 25 -SdkPath 'C:\JavaFX\javafx-sdk-25.0.5.1\lib'
 try {
-    Assert-JavaFxMatchesJdk -JdkMajor 21 -SdkPath 'C:\JavaFX\javafx-25.0.5-windows-x64\lib'
+    Assert-JavaFxMatchesJdk -JdkMajor 21 -SdkPath 'C:\JavaFX\javafx-25.0.5.1-windows-x64\lib'
     throw 'JavaFX 25 should not run on JDK 21.'
 } catch {
-    if ($_.Exception.Message -notlike 'JavaFX 25.0.5 requires JDK 23*') {
+    if ($_.Exception.Message -notlike 'JavaFX 25.0.5.1 requires JDK 23*') {
         throw
     }
 }

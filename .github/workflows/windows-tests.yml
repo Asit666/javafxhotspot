@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jdk: ['17', '21', '25']
+        jdk: ['11', '17', '21', '24', '25']
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.jdk }}
@@ -46,6 +46,9 @@ jobs:
       - name: Test self-updater
         shell: pwsh
         run: ./tests/test-update.ps1
+      - name: Test compile and run commands
+        shell: pwsh
+        run: ./tests/test-commands.ps1
       - name: Install SDK and smoke-test commands
         shell: pwsh
         run: |
