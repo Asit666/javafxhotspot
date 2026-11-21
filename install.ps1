@@ -17,7 +17,7 @@ $installRoot = Join-Path $env:LOCALAPPDATA 'JavaFXHotspot'
 $sdkRoot = Join-Path $installRoot ("sdk\javafx-" + $release.version + "-windows-x64")
 $sdkLib = Join-Path $sdkRoot 'lib'
 $requiredSdkJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
-$requiredSdkNativeLibraries = @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll')
+$requiredSdkNativeLibraries = @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')
 $bin = Join-Path $installRoot 'bin'
 
 foreach ($directoryToCheck in @($installRoot, $bin, (Join-Path $installRoot 'scripts'), (Join-Path $installRoot 'sdk'))) {
@@ -41,7 +41,7 @@ foreach ($jarName in $requiredSdkJars) {
    }
 }
 foreach ($libraryName in $requiredSdkNativeLibraries) {
-    $libraryPath = Join-Path $sdkLib $libraryName
+    $libraryPath = Join-Path $sdkRoot ("bin\" + $libraryName)
     $library = Get-Item -LiteralPath $libraryPath -ErrorAction SilentlyContinue
     if (-not $library -or $library.Length -le 0) {
         $invalidInstalledJars += $libraryName
@@ -94,6 +94,7 @@ if ($invalidInstalledJars.Count -gt 0) {
 
         Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
         $extractedLib = Join-Path $extractPath ("javafx-sdk-$($release.version)\lib")
+        $extractedBin = Join-Path $extractPath ("javafx-sdk-$($release.version)\bin")
         $missingJars = @()
         foreach ($jarName in $requiredSdkJars) {
             $jarPath = Join-Path $extractedLib $jarName
@@ -103,7 +104,7 @@ if ($invalidInstalledJars.Count -gt 0) {
             }
         }
         foreach ($libraryName in $requiredSdkNativeLibraries) {
-            $libraryPath = Join-Path $extractedLib $libraryName
+            $libraryPath = Join-Path $extractedBin $libraryName
             $library = Get-Item -LiteralPath $libraryPath -ErrorAction SilentlyContinue
             if (-not $library -or $library.Length -le 0) {
                 $missingJars += $libraryName

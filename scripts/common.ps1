@@ -273,7 +273,9 @@ function Get-RequiredJavaFxPath {
 function Get-JavaFxSdkJars {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $SdkPath
+        [string] $SdkPath,
+
+        [switch] $ValidateNativeLibraries
     )
 
     if (-not (Test-Path -LiteralPath $SdkPath -PathType Container)) {
@@ -291,6 +293,26 @@ function Get-JavaFxSdkJars {
     }
     if ($invalidJars.Count -gt 0) {
         throw "JavaFX SDK folder '$SdkPath' is incomplete or damaged. Missing or empty required JAR(s): $($invalidJars -join ', '). Reinstall JavaFX Hotspot to repair it."
+    }
+    if ($ValidateNativeLibraries) {
+        $requiredNativeLibraries = @(
+            'glass.dll',
+            'javafx_font.dll',
+            'javafx_iio.dll',
+            'prism_d3d.dll',
+            'prism_sw.dll'
+        )
+        $invalidNativeLibraries = @()
+        $nativeDirectory = Join-Path (Split-Path -Parent $SdkPath) 'bin'
+        foreach ($libraryName in $requiredNativeLibraries) {
+            $library = Get-Item -LiteralPath (Join-Path $nativeDirectory $libraryName) -ErrorAction SilentlyContinue
+            if (-not $library -or $library.Length -le 0) {
+                $invalidNativeLibraries += $libraryName
+            }
+        }
+        if ($invalidNativeLibraries.Count -gt 0) {
+            throw "JavaFX SDK folder '$SdkPath' is incomplete or damaged. Missing or empty required Windows native library/libraries: $($invalidNativeLibraries -join ', '). Reinstall JavaFX Hotspot to repair it."
+        }
     }
 
     @(Get-ChildItem -LiteralPath $SdkPath -Filter 'javafx*.jar' -File | Sort-Object Name)
