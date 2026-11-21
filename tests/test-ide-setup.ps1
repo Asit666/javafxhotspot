@@ -15,6 +15,11 @@ try {
     foreach ($jarName in @('javafx.base.jar', 'javafx.controls.jar', 'javafx.fxml.jar', 'javafx.graphics.jar')) {
         Set-Content -LiteralPath (Join-Path $sdkPath $jarName) -Value 'test'
     }
+    $fakeSdkBin = Join-Path (Split-Path -Parent $sdkPath) 'bin'
+    New-Item -ItemType Directory -Path $fakeSdkBin -Force | Out-Null
+    foreach ($dllName in @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')) {
+        Set-Content -LiteralPath (Join-Path $fakeSdkBin $dllName) -Value 'test'
+    }
     $env:PATH_TO_FX = $sdkPath
 
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'bin\javafxsetup.cmd') -Destination $testBin
@@ -251,6 +256,11 @@ run.jvmargs=-Xmx512m --module-path="C:/old/javafx-sdk/lib" --enable-native-acces
     New-Item -ItemType Directory -Path $quotedSdkPath -Force | Out-Null
     foreach ($jarName in @('javafx.base.jar', 'javafx.controls.jar', 'javafx.fxml.jar', 'javafx.graphics.jar')) {
         Set-Content -LiteralPath (Join-Path $quotedSdkPath $jarName) -Value 'test'
+    }
+    $quotedSdkBin = Join-Path (Split-Path -Parent $quotedSdkPath) 'bin'
+    New-Item -ItemType Directory -Path $quotedSdkBin -Force | Out-Null
+    foreach ($dllName in @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')) {
+        Set-Content -LiteralPath (Join-Path $quotedSdkBin $dllName) -Value 'test'
     }
     $env:PATH_TO_FX = $quotedSdkPath
     $quotedPathProject = Join-Path $tempRoot 'quoted-sdk-path-project'

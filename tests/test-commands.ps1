@@ -24,6 +24,11 @@ try {
     foreach ($jarName in @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar', 'javafx.media.jar', 'javafx.web.jar')) {
         Set-Content -LiteralPath (Join-Path $sdkLib $jarName) -Value 'test'
     }
+    $fakeSdkBin = Join-Path (Split-Path -Parent $sdkLib) 'bin'
+    New-Item -ItemType Directory -Path $fakeSdkBin -Force | Out-Null
+    foreach ($dllName in @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')) {
+        Set-Content -LiteralPath (Join-Path $fakeSdkBin $dllName) -Value 'test'
+    }
 
 @'
 @echo off

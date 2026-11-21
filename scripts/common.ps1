@@ -221,6 +221,13 @@ function Get-CurrentJdk {
 function Get-InstalledJavaFxPath {
     $processCandidate = $env:PATH_TO_FX
     $requiredJars = @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')
+    $requiredNativeLibraries = @(
+        'glass.dll',
+        'javafx_font.dll',
+        'javafx_iio.dll',
+        'prism_d3d.dll',
+        'prism_sw.dll'
+    )
     $candidates = @(
         $processCandidate,
         [Environment]::GetEnvironmentVariable('PATH_TO_FX', 'User')
@@ -232,6 +239,16 @@ function Get-InstalledJavaFxPath {
             foreach ($jarName in $requiredJars) {
                 $jar = Get-Item -LiteralPath (Join-Path $candidate $jarName) -ErrorAction SilentlyContinue
                 if (-not $jar -or $jar.Length -le 0) {
+                    $candidateComplete = $false
+                    break
+                }
+            }
+        }
+        if ($candidateComplete) {
+            $nativeDirectory = Join-Path (Split-Path -Parent $candidate) 'bin'
+            foreach ($libraryName in $requiredNativeLibraries) {
+                $library = Get-Item -LiteralPath (Join-Path $nativeDirectory $libraryName) -ErrorAction SilentlyContinue
+                if (-not $library -or $library.Length -le 0) {
                     $candidateComplete = $false
                     break
                 }
@@ -405,10 +422,6 @@ function Resolve-JavaSource {
     }
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {
         return (Get-Item -LiteralPath $candidate).FullName
-    }
-    if ([System.IO.Path]::IsPathRooted($Source) -or
-        $Source.Contains('\') -or $Source.Contains('/')) {
-        throw "Could not find explicit Java source path '$Source'."
     }
     if ([System.IO.Path]::IsPathRooted($Source) -or
         $Source.Contains('\') -or $Source.Contains('/')) {

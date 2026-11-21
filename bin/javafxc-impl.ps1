@@ -34,6 +34,17 @@ foreach ($directory in @($buildDirectory, $outputDirectory)) {
             throw "Refusing to use linked build directory '$directory'. Use a real project build folder."
         }
     }
+    if (Test-Path -LiteralPath $buildDirectory -PathType Container) {
+        Get-ChildItem -LiteralPath $buildDirectory -Directory -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like 'staging-*' } |
+            ForEach-Object {
+                $oldDirectory = $_
+                if ($oldDirectory.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    throw "Refusing to remove linked build recovery directory '$($oldDirectory.FullName)'."
+                }
+                Remove-Item -LiteralPath $oldDirectory.FullName -Recurse -Force -ErrorAction Stop
+            }
+    }
 }
 
 New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
@@ -80,6 +91,9 @@ try {
         try {
             Move-Item -LiteralPath $backupDirectory -Destination $outputDirectory -ErrorAction Stop
         } catch {
+            if (Test-Path -LiteralPath $stagingDirectory) {
+                Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+            }
             throw "Could not publish the successful build, and automatic restoration of the previous build failed. Previous build remains at '$backupDirectory'. $($_.Exception.Message)"
         }
         if (Test-Path -LiteralPath $stagingDirectory) {

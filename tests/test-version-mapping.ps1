@@ -84,6 +84,11 @@ try {
     foreach ($jarName in @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')) {
         Set-Content -LiteralPath (Join-Path $completeLib $jarName) -Value 'test'
     }
+    $completeBin = Join-Path (Split-Path -Parent $completeLib) 'bin'
+    New-Item -ItemType Directory -Path $completeBin -Force | Out-Null
+    foreach ($dllName in @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')) {
+        Set-Content -LiteralPath (Join-Path $completeBin $dllName) -Value 'test'
+    }
     $env:PATH_TO_FX = $incompleteLib
     [Environment]::SetEnvironmentVariable('PATH_TO_FX', $completeLib, 'User')
     if ((Get-InstalledJavaFxPath) -ne $completeLib) {
@@ -108,8 +113,35 @@ try {
     foreach ($jarName in @('javafx.base.jar', 'javafx.graphics.jar', 'javafx.controls.jar', 'javafx.fxml.jar')) {
         Set-Content -LiteralPath (Join-Path $sdkTestLib $jarName) -Value 'test'
     }
+    $sdkTestBin = Join-Path $sdkTestRoot 'bin'
+    New-Item -ItemType Directory -Path $sdkTestBin -Force | Out-Null
+    foreach ($dllName in @('glass.dll', 'javafx_font.dll', 'javafx_iio.dll', 'prism_d3d.dll', 'prism_sw.dll')) {
+        Set-Content -LiteralPath (Join-Path $sdkTestBin $dllName) -Value 'test'
+    }
     if (@(Get-JavaFxSdkJars -SdkPath $sdkTestLib).Count -ne 4) {
         throw 'JavaFX SDK validation did not return all installed JARs.'
+    }
+    if (@(Get-JavaFxSdkJars -SdkPath $sdkTestLib -ValidateNativeLibraries).Count -ne 4) {
+        throw 'JavaFX SDK native-library validation did not preserve JAR enumeration.'
+    }
+    [System.IO.File]::WriteAllText((Join-Path $sdkTestBin 'glass.dll'), '')
+    try {
+        Get-JavaFxSdkJars -SdkPath $sdkTestLib -ValidateNativeLibraries | Out-Null
+        throw 'An empty required JavaFX native DLL should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike '*incomplete or damaged*glass.dll*') {
+            throw
+        }
+    }
+    Set-Content -LiteralPath (Join-Path $sdkTestBin 'glass.dll') -Value 'test'
+    Remove-Item -LiteralPath (Join-Path $sdkTestBin 'prism_sw.dll') -Force
+    try {
+        Get-JavaFxSdkJars -SdkPath $sdkTestLib -ValidateNativeLibraries | Out-Null
+        throw 'A missing required JavaFX native DLL should be rejected.'
+    } catch {
+        if ($_.Exception.Message -notlike '*incomplete or damaged*prism_sw.dll*') {
+            throw
+        }
     }
 
     $env:JAVAFX_MODULES = 'javafx.controls, javafx.media'

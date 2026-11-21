@@ -26,12 +26,22 @@ foreach ($directoryToCheck in @(
     (Join-Path $installRoot 'scripts'),
     (Join-Path $installRoot 'sdk'),
     $sdkRoot,
-    $sdkLib
+    $sdkLib,
+    (Join-Path $sdkRoot 'bin')
 )) {
     if (Test-Path -LiteralPath $directoryToCheck) {
         $directoryItem = Get-Item -LiteralPath $directoryToCheck -Force
         if ($directoryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
             throw "Refusing to install through linked directory '$directoryToCheck'. Remove or inspect the link before retrying."
+        }
+    }
+    foreach ($libraryName in $requiredSdkNativeLibraries) {
+        $libraryPath = Join-Path $sdkRoot ("bin\" + $libraryName)
+        if (Test-Path -LiteralPath $libraryPath) {
+            $libraryItem = Get-Item -LiteralPath $libraryPath -Force
+            if ($libraryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                throw "Refusing to use linked JavaFX native library '$libraryPath'."
+            }
         }
     }
 }
